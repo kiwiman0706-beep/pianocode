@@ -91,6 +91,11 @@
         <option value="0" selected>±0</option>
       </select>
       <button id="toC">最初のコードをCに</button>
+      <label style="margin-left:12px">ボイシング</label>
+      <select id="style">
+        <option value="easy" selected>覚えやすい（ルート+5th / 3rd+テンション）</option>
+        <option value="shell">ジャズ定番（シェル：ルート / 3rd+7th）</option>
+      </select>
       <label style="margin-left:12px">判定モード</label>
       <select id="mode">
         <option value="loose" selected>ゆるい（ルート+3rd+7th）</option>
@@ -109,8 +114,8 @@
   <section class="panel now">
     <div class="chordName" id="chordName">—</div>
     <div class="voicing">
-      <div class="hand left"><h3>左手（土台：ルート+5th）</h3><div class="keys" id="leftKeys">—</div></div>
-      <div class="hand right"><h3>右手（色：3rd+テンション）</h3><div class="keys" id="rightKeys">—</div></div>
+      <div class="hand left"><h3 id="leftLabel">左手（土台）</h3><div class="keys" id="leftKeys">—</div></div>
+      <div class="hand right"><h3 id="rightLabel">右手（色）</h3><div class="keys" id="rightKeys">—</div></div>
     </div>
     <div class="verdict idle" id="verdict">弾いてね<small id="verdictSub">&nbsp;</small></div>
   </section>
@@ -222,18 +227,28 @@ function parseChord(sym){
 }
 
 //======================================================================
-// ボイシング生成
-//  左手 = ルート + 5th （C3域に固定）
-//  右手 = 3rd + 7th + テンション （C4域に固定 = ホームポジション維持）
+// ボイシング生成（2流儀を切替）
+//  easy  = 覚えやすい : 左=ルート+5th / 右=3rd+7th+テンション
+//  shell = ジャズ定番 : 左=ルートのみ / 右=3rd+7th+テンション（5thは省く）
+//                       ※7thを持たない三和音・6th系は5thも残して薄すぎ防止
+//  いずれも各音のオクターブ位置を固定 = ホームポジション維持
 //======================================================================
-function voicing(ch){
+function voicing(ch, style){
   const r = ch.root;
+  const hasSeventh = ch.seventh!=null;
+  const dropFifth  = (style==='shell' && hasSeventh); // ジャズは7th系で5thを省略
   const left = [LEFT_BASE + r];
-  if(ch.fifth!=null) left.push(LEFT_BASE + r + ch.fifth);
-  const rightPCs = ch.intervals.filter(iv => iv!==0 && iv!==ch.fifth);
+  if(!dropFifth && style==='easy' && ch.fifth!=null) left.push(LEFT_BASE + r + ch.fifth);
+  // 右手 = 構成音からルートと（省く場合の）5thを除いたもの
+  const rightPCs = ch.intervals.filter(iv => iv!==0 &&
+                    !(style==='easy' && iv===ch.fifth) &&
+                    !(dropFifth && iv===ch.fifth));
   const right = rightPCs.map(iv => RIGHT_BASE + ((r+iv)%12)).sort((a,b)=>a-b);
-  return {left, right, all:[...left,...right]};
+  return {left, right, all:[...left,...right],
+          leftLabel: style==='shell' ? 'ルート' : 'ルート+5th',
+          rightLabel: (style==='shell'&&hasSeventh) ? '3rd+7th+テンション（5th省略）' : '3rd+テンション'};
 }
+function currentStyle(){ return document.getElementById('style').value; }
 
 //======================================================================
 // 判定
@@ -337,8 +352,10 @@ function showCurrent(){
     setVerdict('idle','解析できません','コード名を確認してね');
     return;
   }
-  currentVoicing=voicing(ch);
+  currentVoicing=voicing(ch, currentStyle());
   $('chordName').textContent=ch.symbol;
+  $('leftLabel').textContent  = '左手（土台：'+currentVoicing.leftLabel+'）';
+  $('rightLabel').textContent = '右手（色：'+currentVoicing.rightLabel+'）';
   $('leftKeys').textContent  = currentVoicing.left.map(noteName).join('  ') || '—';
   $('rightKeys').textContent = currentVoicing.right.map(noteName).join('  ') || '—';
   paintHints();
@@ -504,6 +521,7 @@ function onMIDI(ev){
 $('apply').onclick=()=>setProgression($('prog').value);
 $('prog').addEventListener('keydown',e=>{if(e.key==='Enter')setProgression($('prog').value);});
 $('transpose').onchange=rebuild;
+$('style').onchange=showCurrent;
 $('mode').onchange=()=>{ updateModeInfo(); evaluate(); };
 $('showHint').onchange=paintHints;
 $('next').onclick=()=>go(1);
