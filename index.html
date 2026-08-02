@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JazzSteps Lite — ジャズピアノ コード練習</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#1a2233; --panel2:#232d42; --line:#33405c;
+    --text:#e7ecf5; --muted:#93a1bd; --accent:#4fd1c5; --accent2:#f6ad55;
+    --ok:#48bb78; --ng:#e05a5a; --hintL:#3b6ea5; --hintR:#c98a2b; --play:#4fd1c5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       background:var(--bg);color:var(--text);line-height:1.5}
+  header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;
+         align-items:baseline;gap:12px;flex-wrap:wrap}
+  header h1{font-size:18px;margin:0}
+  header .sub{color:var(--muted);font-size:12px}
+  #midiStatus{margin-left:auto;font-size:12px;color:var(--muted)}
+  #midiStatus.on{color:var(--ok)}
+  main{max-width:1080px;margin:0 auto;padding:16px;display:grid;gap:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  label{font-size:12px;color:var(--muted)}
+  input[type=text]{background:var(--panel2);border:1px solid var(--line);color:var(--text);
+       border-radius:8px;padding:8px 10px;font-size:14px}
+  input#prog{flex:1;min-width:260px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  select,button{background:var(--panel2);border:1px solid var(--line);color:var(--text);
+       border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);color:#08201d;border-color:var(--accent);font-weight:600}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{padding:6px 12px;border-radius:20px;background:var(--panel2);border:1px solid var(--line);
+        font-family:ui-monospace,monospace;font-size:14px;cursor:pointer;user-select:none}
+  .chip.active{background:var(--accent);color:#08201d;border-color:var(--accent);font-weight:700}
+  .chip.done{opacity:.5}
+
+  .now{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center}
+  .chordName{font-size:44px;font-weight:800;font-family:ui-monospace,monospace;letter-spacing:1px}
+  .voicing{display:flex;gap:24px;flex-wrap:wrap}
+  .hand{min-width:150px}
+  .hand h3{margin:0 0 4px;font-size:12px;color:var(--muted);font-weight:600}
+  .hand .keys{font-size:22px;font-family:ui-monospace,monospace;font-weight:700}
+  .hand.left h3{color:var(--hintL)} .hand.right h3{color:var(--hintR)}
+  .verdict{font-size:16px;font-weight:700;text-align:right;min-width:120px}
+  .verdict.ok{color:var(--ok)} .verdict.ng{color:var(--ng)} .verdict.idle{color:var(--muted)}
+  .verdict small{display:block;font-weight:400;font-size:11px;color:var(--muted)}
+
+  /* piano */
+  .pianoWrap{overflow-x:auto;padding-bottom:6px}
+  .piano{position:relative;height:150px;display:flex;user-select:none;min-width:640px}
+  .wkey{position:relative;flex:1;background:linear-gradient(#fff,#eef);border:1px solid #99a;
+        border-radius:0 0 5px 5px;cursor:pointer}
+  .wkey .lab{position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:9px;color:#556}
+  .bkey{position:absolute;top:0;width:60%;height:62%;background:linear-gradient(#333,#000);
+        border:1px solid #000;border-radius:0 0 4px 4px;transform:translateX(-50%);z-index:2;cursor:pointer}
+  .wkey.hintL{background:linear-gradient(#bcd6f2,#7fb0e2)}
+  .wkey.hintR{background:linear-gradient(#f4d9a6,#e6b463)}
+  .bkey.hintL{background:linear-gradient(#5b86b8,#2f5d94)}
+  .bkey.hintR{background:linear-gradient(#c79a54,#a9772a)}
+  .wkey.play{background:linear-gradient(#8ff3e9,#38c9bd)!important}
+  .bkey.play{background:linear-gradient(#38c9bd,#1c9a90)!important}
+
+  .help{color:var(--muted);font-size:12px}
+  kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;
+      border-radius:4px;padding:1px 6px;font-family:ui-monospace,monospace;font-size:11px}
+  .modeInfo{font-size:12px;color:var(--muted);margin-top:6px}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎹 JazzSteps Lite</h1>
+  <span class="sub">ジャズピアノ コード練習 — ホームポジション最小運指</span>
+  <span id="midiStatus">MIDI: 未接続</span>
+</header>
+
+<main>
+  <!-- コード進行 -->
+  <section class="panel">
+    <div class="row">
+      <label>コード進行</label>
+      <input id="prog" type="text" value="Dm7 G7 Cmaj7"
+             placeholder="例: Dm7 G7 Cmaj7  (スペース か | 区切り)">
+      <button id="apply" class="primary">セット</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label>移調</label>
+      <select id="transpose">
+        <option value="0" selected>±0</option>
+      </select>
+      <button id="toC">最初のコードをCに</button>
+      <label style="margin-left:12px">判定モード</label>
+      <select id="mode">
+        <option value="loose" selected>ゆるい（ルート+3rd+7th）</option>
+        <option value="superloose">超ゆるい（色の音だけ）</option>
+        <option value="strict">厳格（構成音ぴったり）</option>
+      </select>
+      <label style="margin-left:12px"><input type="checkbox" id="autoNext" checked> 正解で自動的に次へ</label>
+      <label><input type="checkbox" id="showHint" checked> お手本を鍵盤に表示</label>
+      <label><input type="checkbox" id="sound" checked> 音を鳴らす</label>
+    </div>
+    <div class="chips" id="chips" style="margin-top:12px"></div>
+    <div class="modeInfo" id="modeInfo"></div>
+  </section>
+
+  <!-- 今のコード -->
+  <section class="panel now">
+    <div class="chordName" id="chordName">—</div>
+    <div class="voicing">
+      <div class="hand left"><h3>左手（土台：ルート+5th）</h3><div class="keys" id="leftKeys">—</div></div>
+      <div class="hand right"><h3>右手（色：3rd+テンション）</h3><div class="keys" id="rightKeys">—</div></div>
+    </div>
+    <div class="verdict idle" id="verdict">弾いてね<small id="verdictSub">&nbsp;</small></div>
+  </section>
+
+  <!-- 鍵盤 -->
+  <section class="panel">
+    <div class="pianoWrap"><div class="piano" id="piano"></div></div>
+    <div class="row" style="margin-top:10px">
+      <button id="prev">← 前</button>
+      <button id="next">次 →</button>
+      <button id="replay">お手本を鳴らす ♪</button>
+      <span class="help" style="margin-left:auto">
+        PCキー: 右手 <kbd>A</kbd><kbd>W</kbd><kbd>S</kbd><kbd>E</kbd><kbd>D</kbd><kbd>F</kbd><kbd>T</kbd><kbd>G</kbd><kbd>Y</kbd><kbd>H</kbd><kbd>U</kbd><kbd>J</kbd>（C4〜） /
+        左手 <kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd><kbd>V</kbd><kbd>B</kbd><kbd>N</kbd><kbd>M</kbd>（C3〜白鍵）
+      </span>
+    </div>
+  </section>
+
+  <p class="help">
+    MIDIキーボードを繋ぐと自動で入力されます（Chrome/Edge・HTTPSまたはlocalhostで動作）。
+    画面の鍵盤クリック／PCキーでも練習できます。
+  </p>
+</main>
+
+<script>
+"use strict";
+//======================================================================
+// 音名・定数
+//======================================================================
+const LETTER = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+const SHARP  = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const LOW=48, HIGH=84;                 // 表示鍵盤 C3..C6（37鍵＝ミニ鍵盤相当）
+const LEFT_BASE=48;                    // 左手のオクターブ基準 C3
+const RIGHT_BASE=60;                   // 右手のオクターブ基準 C4（ホームポジション固定）
+const noteName = m => SHARP[m%12] + (Math.floor(m/12)-1);
+
+//======================================================================
+// コード名パーサ  ->  {root, symbol, intervals:[..], third, fifth, seventh}
+//  intervals は root からの半音（0を含む）
+//======================================================================
+// コア品質テーブル（長い綴りから順にマッチ）
+const CORE = [
+  ['maj9',{th:4,f:7,sv:11,add:[2]}],
+  ['maj7',{th:4,f:7,sv:11}], ['M7',{th:4,f:7,sv:11}], ['Δ',{th:4,f:7,sv:11}],
+  ['mMaj7',{th:3,f:7,sv:11}], ['mM7',{th:3,f:7,sv:11}], ['m(maj7)',{th:3,f:7,sv:11}],
+  ['m7b5',{th:3,f:6,sv:10}], ['m7-5',{th:3,f:6,sv:10}], ['ø',{th:3,f:6,sv:10}], ['ø7',{th:3,f:6,sv:10}],
+  ['dim7',{th:3,f:6,sv:9}], ['°7',{th:3,f:6,sv:9}],
+  ['dim',{th:3,f:6}], ['°',{th:3,f:6}],
+  ['aug7',{th:4,f:8,sv:10}], ['+7',{th:4,f:8,sv:10}],
+  ['aug',{th:4,f:8}], ['+',{th:4,f:8}],
+  ['m9',{th:3,f:7,sv:10,add:[2]}],
+  ['m11',{th:3,f:7,sv:10,add:[2,5]}],
+  ['m13',{th:3,f:7,sv:10,add:[2,9]}],
+  ['m7',{th:3,f:7,sv:10}], ['min7',{th:3,f:7,sv:10}], ['-7',{th:3,f:7,sv:10}],
+  ['m6',{th:3,f:7,add:[9]}], ['min6',{th:3,f:7,add:[9]}], ['-6',{th:3,f:7,add:[9]}],
+  ['m',{th:3,f:7}], ['min',{th:3,f:7}], ['-',{th:3,f:7}],
+  ['sus2',{th:2,f:7}], ['sus4',{th:5,f:7}], ['sus',{th:5,f:7}],
+  ['69',{th:4,f:7,add:[9,2]}], ['6/9',{th:4,f:7,add:[9,2]}], ['6',{th:4,f:7,add:[9]}],
+  ['13',{th:4,f:7,sv:10,add:[2,9]}],
+  ['11',{th:4,f:7,sv:10,add:[2,5]}],
+  ['9',{th:4,f:7,sv:10,add:[2]}],
+  ['7',{th:4,f:7,sv:10}],
+  ['add9',{th:4,f:7,add:[2]}], ['add2',{th:4,f:7,add:[2]}], ['add11',{th:4,f:7,add:[5]}],
+  ['maj',{th:4,f:7}], ['M',{th:4,f:7}], ['',{th:4,f:7}],
+];
+// コア後の追加変化（長い順）
+const ALTER = [
+  ['add9',s=>s.add.push(2)], ['add11',s=>s.add.push(5)], ['add13',s=>s.add.push(9)],
+  ['sus4',s=>s.th=5], ['sus2',s=>s.th=2], ['sus',s=>s.th=5],
+  ['b13',s=>s.add.push(8)], ['#11',s=>s.add.push(6)], ['b9',s=>s.add.push(1)], ['#9',s=>s.add.push(3)],
+  ['b5',s=>s.f=6], ['#5',s=>s.f=8], ['no5',s=>s.f=null], ['no3',s=>s.th=null],
+  ['13',s=>s.add.push(9)], ['11',s=>s.add.push(5)], ['9',s=>s.add.push(2)],
+];
+
+function parseChord(sym){
+  sym = sym.trim();
+  const m = sym.match(/^([A-Ga-g])([#b♯♭]?)(.*)$/);
+  if(!m) return null;
+  let root = LETTER[m[1].toUpperCase()];
+  if(m[2]==='#'||m[2]==='♯') root=(root+1)%12;
+  if(m[2]==='b'||m[2]==='♭') root=(root+11)%12;
+  let q = m[3];
+
+  // コア品質を先頭マッチ
+  let base=null, rest=q;
+  for(const [key,val] of CORE){
+    if(q.startsWith(key)){ base={...val,add:(val.add||[]).slice()}; rest=q.slice(key.length); break; }
+  }
+  if(!base) return null;
+  // 追加変化を順に消費
+  let guard=0;
+  outer: while(rest.length && guard++<12){
+    for(const [key,fn] of ALTER){
+      if(rest.startsWith(key)){ fn(base); rest=rest.slice(key.length); continue outer; }
+    }
+    rest = rest.slice(1); // 未知トークンは読み飛ばし（寛容）
+  }
+
+  const set = new Set([0]);
+  if(base.th!=null) set.add(base.th);
+  if(base.f!=null)  set.add(base.f);
+  if(base.sv!=null) set.add(base.sv);
+  base.add.forEach(a=>set.add(a%12));
+  return {
+    root, symbol:sym,
+    intervals:[...set].sort((a,b)=>a-b),
+    third: base.th, fifth: base.f, seventh: base.sv
+  };
+}
+
+//======================================================================
+// ボイシング生成
+//  左手 = ルート + 5th （C3域に固定）
+//  右手 = 3rd + 7th + テンション （C4域に固定 = ホームポジション維持）
+//======================================================================
+function voicing(ch){
+  const r = ch.root;
+  const left = [LEFT_BASE + r];
+  if(ch.fifth!=null) left.push(LEFT_BASE + r + ch.fifth);
+  const rightPCs = ch.intervals.filter(iv => iv!==0 && iv!==ch.fifth);
+  const right = rightPCs.map(iv => RIGHT_BASE + ((r+iv)%12)).sort((a,b)=>a-b);
+  return {left, right, all:[...left,...right]};
+}
+
+//======================================================================
+// 判定
+//======================================================================
+function guideTones(ch){
+  const g=[];
+  if(ch.third!=null) g.push((ch.root+ch.third)%12);
+  if(ch.seventh!=null) g.push((ch.root+ch.seventh)%12);
+  return g;
+}
+function chordPCs(ch){ return ch.intervals.map(iv=>(ch.root+iv)%12); }
+
+function judge(ch, heldPCs, mode){
+  const target = new Set(chordPCs(ch));
+  const held = new Set(heldPCs);
+  const rootPC=ch.root%12, guides=guideTones(ch);
+  const has = pc => held.has(pc);
+
+  if(mode==='strict'){
+    for(const t of target) if(!has(t)) return {ok:false,sub:'足りない音: '+SHARP[[...target].find(t=>!has(t))]};
+    for(const h of held) if(!target.has(h)) return {ok:false,sub:'余分な音: '+SHARP[[...held].find(h=>!target.has(h))]};
+    return {ok:true,sub:'構成音ぴったり'};
+  }
+  if(mode==='superloose'){
+    const miss = guides.filter(g=>!has(g));
+    if(miss.length) return {ok:false,sub:'色の音が足りない: '+miss.map(p=>SHARP[p]).join(' ')};
+    return {ok:true,sub:'色の音OK（ルート等は省略可）'};
+  }
+  // loose : ルート + ガイドトーン（3rd/7th）が必要、余分は許容
+  const need = [rootPC, ...guides];
+  const miss = need.filter(p=>!has(p));
+  if(miss.length) return {ok:false,sub:'足りない: '+[...new Set(miss)].map(p=>SHARP[p]).join(' ')};
+  return {ok:true,sub:'ルート+3rd+7th OK（+テンション自由）'};
+}
+
+//======================================================================
+// 状態
+//======================================================================
+let progression=[];    // パース済みコード配列（移調前のシンボル保持）
+let rawSymbols=[];     // 入力シンボル
+let idx=0;
+let held=new Set();    // 押している MIDI ノート
+let currentVoicing=null;
+
+const $=id=>document.getElementById(id);
+
+//---- 進行のセット --------------------------------------------------
+function setProgression(text){
+  rawSymbols = text.split(/[\s|,]+/).filter(Boolean);
+  buildTransposeOptions();
+  rebuild();
+}
+function currentTranspose(){ return parseInt($('transpose').value,10)||0; }
+
+function rebuild(){
+  const t=currentTranspose();
+  progression = rawSymbols.map(s=>{
+    const ch=parseChord(s);
+    if(!ch) return {bad:true, symbol:s};
+    return transposeChord(ch, t);
+  });
+  if(idx>=progression.length) idx=0;
+  renderChips(); showCurrent();
+}
+function transposeChord(ch, semi){
+  const nr=((ch.root+semi)%12+12)%12;
+  // シンボルの音名部分だけ差し替え
+  const rest = ch.symbol.replace(/^([A-Ga-g])([#b♯♭]?)/,'');
+  return {...ch, root:nr, symbol:SHARP[nr]+rest};
+}
+function buildTransposeOptions(){
+  const sel=$('transpose'); const cur=sel.value;
+  sel.innerHTML='';
+  for(let i=-6;i<=6;i++){
+    const o=document.createElement('option');
+    o.value=i; o.textContent=(i>0?'+':'')+i+(i? ' 半音':'（±0）');
+    sel.appendChild(o);
+  }
+  sel.value = (cur!=='' && !isNaN(+cur))? cur : '0';
+}
+
+//---- 表示 ---------------------------------------------------------
+function renderChips(){
+  const c=$('chips'); c.innerHTML='';
+  progression.forEach((ch,i)=>{
+    const el=document.createElement('span');
+    el.className='chip'+(i===idx?' active':'')+(i<idx?' done':'');
+    el.textContent=ch.bad? ch.symbol+'?' : ch.symbol;
+    el.title = ch.bad? '解析できませんでした' : '';
+    el.onclick=()=>{idx=i;showCurrent();};
+    c.appendChild(el);
+  });
+}
+function showCurrent(){
+  renderChips();
+  const ch=progression[idx];
+  if(!ch || ch.bad){
+    $('chordName').textContent = ch? ch.symbol+' ?' : '—';
+    $('leftKeys').textContent='—'; $('rightKeys').textContent='—';
+    currentVoicing=null; clearHints(); paintHints();
+    setVerdict('idle','解析できません','コード名を確認してね');
+    return;
+  }
+  currentVoicing=voicing(ch);
+  $('chordName').textContent=ch.symbol;
+  $('leftKeys').textContent  = currentVoicing.left.map(noteName).join('  ') || '—';
+  $('rightKeys').textContent = currentVoicing.right.map(noteName).join('  ') || '—';
+  paintHints();
+  evaluate();
+}
+function setVerdict(kind,txt,sub){
+  const v=$('verdict'); v.className='verdict '+kind;
+  v.firstChild.nodeValue=txt;
+  $('verdictSub').textContent=sub||' ';
+}
+
+//---- 鍵盤描画 -----------------------------------------------------
+const keyEls={}; // midi -> element
+function buildPiano(){
+  const p=$('piano'); p.innerHTML='';
+  const isBlack=m=>[1,3,6,8,10].includes(m%12);
+  // 白鍵を並べ、黒鍵は白鍵に対して絶対配置
+  const whites=[]; for(let m=LOW;m<=HIGH;m++) if(!isBlack(m)) whites.push(m);
+  whites.forEach(m=>{
+    const w=document.createElement('div'); w.className='wkey'; w.dataset.midi=m;
+    const lab=document.createElement('div'); lab.className='lab';
+    if(m%12===0) lab.textContent=noteName(m);
+    w.appendChild(lab);
+    p.appendChild(w); keyEls[m]=w;
+    bindKey(w,m);
+  });
+  // 黒鍵
+  const wWidth=1/whites.length;
+  let wi=0;
+  for(let m=LOW;m<=HIGH;m++){
+    if(isBlack(m)){
+      const b=document.createElement('div'); b.className='bkey'; b.dataset.midi=m;
+      // 直前の白鍵との境界に配置
+      b.style.left=(wi*wWidth*100)+'%';
+      p.appendChild(b); keyEls[m]=b; bindKey(b,m);
+    } else wi++;
+  }
+}
+function bindKey(el,m){
+  el.addEventListener('mousedown',e=>{e.preventDefault();noteOn(m,'mouse');});
+  el.addEventListener('mouseup',()=>noteOff(m));
+  el.addEventListener('mouseleave',()=>{if(held.has(m))noteOff(m);});
+  el.addEventListener('touchstart',e=>{e.preventDefault();noteOn(m,'touch');},{passive:false});
+  el.addEventListener('touchend',e=>{e.preventDefault();noteOff(m);});
+}
+function clearHints(){
+  Object.values(keyEls).forEach(el=>el.classList.remove('hintL','hintR'));
+}
+function paintHints(){
+  clearHints();
+  if(!currentVoicing || !$('showHint').checked) return;
+  currentVoicing.left.forEach(m=>{ if(keyEls[m]) keyEls[m].classList.add('hintL'); });
+  currentVoicing.right.forEach(m=>{ if(keyEls[m]) keyEls[m].classList.add('hintR'); });
+}
+function paintHeld(){
+  Object.entries(keyEls).forEach(([m,el])=>el.classList.toggle('play',held.has(+m)));
+}
+
+//---- 入力（共通） -------------------------------------------------
+function noteOn(m,src){
+  if(held.has(m)) return;
+  held.add(m); paintHeld();
+  if($('sound').checked) playTone(m);
+  evaluate();
+}
+function noteOff(m){
+  if(!held.has(m)) return;
+  held.delete(m); paintHeld(); stopTone(m); evaluate();
+}
+function heldPitchClasses(){ return [...held].map(m=>m%12); }
+
+let passed=false;
+function evaluate(){
+  const ch=progression[idx];
+  if(!ch || ch.bad){ return; }
+  const res=judge(ch, heldPitchClasses(), $('mode').value);
+  if(held.size===0){ setVerdict('idle','弾いてね','お手本の色: 青=左手 / 橙=右手'); passed=false; return; }
+  if(res.ok){
+    setVerdict('ok','✅ 正解',res.sub);
+    if(!passed){
+      passed=true;
+      if($('autoNext').checked) setTimeout(()=>{ if(passed){ go(1);} }, 550);
+    }
+  }else{
+    setVerdict('ng','… もう少し',res.sub); passed=false;
+  }
+}
+function go(d){
+  passed=false;
+  if(!progression.length) return;
+  idx=(idx+d+progression.length)%progression.length;
+  showCurrent();
+}
+
+//---- Web Audio（内蔵音） ------------------------------------------
+let ac=null; const voices={};
+function audio(){ if(!ac) ac=new (window.AudioContext||window.webkitAudioContext)(); return ac; }
+function playTone(m){
+  const a=audio(); const o=a.createOscillator(), g=a.createGain();
+  o.type='triangle'; o.frequency.value=440*Math.pow(2,(m-69)/12);
+  g.gain.setValueAtTime(0.0001,a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.18,a.currentTime+0.01);
+  o.connect(g).connect(a.destination); o.start();
+  voices[m]={o,g};
+}
+function stopTone(m){
+  const v=voices[m]; if(!v) return; const a=audio();
+  v.g.gain.cancelScheduledValues(a.currentTime);
+  v.g.gain.setValueAtTime(v.g.gain.value,a.currentTime);
+  v.g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+0.12);
+  v.o.stop(a.currentTime+0.14); delete voices[m];
+}
+function replay(){
+  if(!currentVoicing) return;
+  const a=audio(); let t=a.currentTime;
+  currentVoicing.all.forEach((m,i)=>{
+    const o=a.createOscillator(),g=a.createGain();
+    o.type='triangle'; o.frequency.value=440*Math.pow(2,(m-69)/12);
+    const st=t+i*0.04;
+    g.gain.setValueAtTime(0.0001,st);
+    g.gain.exponentialRampToValueAtTime(0.16,st+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,st+0.9);
+    o.connect(g).connect(a.destination); o.start(st); o.stop(st+0.95);
+  });
+}
+
+//---- PCキーボード -------------------------------------------------
+const KEYMAP={ // 右手 C4域
+  a:60,w:61,s:62,e:63,d:64,f:65,t:66,g:67,y:68,h:69,u:70,j:71,k:72,
+  // 左手 C3域（白鍵）
+  z:48,x:50,c:52,v:53,b:55,n:57,m:59
+};
+addEventListener('keydown',e=>{
+  if(e.repeat||e.metaKey||e.ctrlKey||e.altKey) return;
+  const t=e.target.tagName; if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA') return;
+  const m=KEYMAP[e.key.toLowerCase()]; if(m!=null){ e.preventDefault(); noteOn(m,'pc'); }
+});
+addEventListener('keyup',e=>{
+  const m=KEYMAP[e.key.toLowerCase()]; if(m!=null) noteOff(m);
+});
+
+//---- Web MIDI -----------------------------------------------------
+function initMIDI(){
+  if(!navigator.requestMIDIAccess){ $('midiStatus').textContent='MIDI: 非対応ブラウザ'; return; }
+  navigator.requestMIDIAccess().then(acc=>{
+    const hook=()=>{
+      const ins=[...acc.inputs.values()];
+      ins.forEach(inp=>inp.onmidimessage=onMIDI);
+      const st=$('midiStatus');
+      if(ins.length){ st.textContent='MIDI: '+ins.map(i=>i.name).join(', '); st.classList.add('on'); }
+      else { st.textContent='MIDI: 機器を接続してください'; st.classList.remove('on'); }
+    };
+    hook(); acc.onstatechange=hook;
+  }).catch(()=>{ $('midiStatus').textContent='MIDI: 許可されませんでした'; });
+}
+function onMIDI(ev){
+  const [status,note,vel]=ev.data; const cmd=status&0xf0;
+  if(cmd===0x90 && vel>0) noteOn(note,'midi');
+  else if(cmd===0x80 || (cmd===0x90 && vel===0)) noteOff(note);
+}
+
+//---- イベント配線 -------------------------------------------------
+$('apply').onclick=()=>setProgression($('prog').value);
+$('prog').addEventListener('keydown',e=>{if(e.key==='Enter')setProgression($('prog').value);});
+$('transpose').onchange=rebuild;
+$('mode').onchange=()=>{ updateModeInfo(); evaluate(); };
+$('showHint').onchange=paintHints;
+$('next').onclick=()=>go(1);
+$('prev').onclick=()=>go(-1);
+$('replay').onclick=replay;
+$('toC').onclick=()=>{
+  const first=rawSymbols.map(parseChord).find(c=>c);
+  if(!first) return;
+  const semi=((0-first.root)%12+12)%12; // 最初のコードのルートを C(0) へ
+  const norm = semi>6? semi-12 : semi;   // -6..6 に丸め
+  $('transpose').value = Math.max(-6,Math.min(6,norm));
+  rebuild();
+};
+function updateModeInfo(){
+  const map={
+    loose:'ゆるい: ルート+3rd+7th が鳴っていれば正解。オクターブ違い・転回・テンション追加は自由。',
+    superloose:'超ゆるい: コードの“色”＝3rd と 7th さえ合えば正解（ルート/5th は省略OK）。',
+    strict:'厳格: 構成音ぴったり（足りない音・余分な音があると不正解）。'
+  };
+  $('modeInfo').textContent=map[$('mode').value];
+}
+
+//---- 起動 ---------------------------------------------------------
+buildPiano();
+updateModeInfo();
+setProgression($('prog').value);
+initMIDI();
+</script>
+</body>
+</html>
