@@ -56,8 +56,9 @@
   .wkey{position:relative;flex:1;background:linear-gradient(#fff,#eef);border:1px solid #99a;
         border-radius:0 0 5px 5px;cursor:pointer}
   .wkey .lab{position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:9px;color:#556}
-  .bkey{position:absolute;top:0;width:60%;height:62%;background:linear-gradient(#333,#000);
-        border:1px solid #000;border-radius:0 0 4px 4px;transform:translateX(-50%);z-index:2;cursor:pointer}
+  .bkey{position:absolute;top:0;height:62%;background:linear-gradient(#3a3f4a,#0a0d12);
+        border:1px solid #000;border-top:none;border-radius:0 0 4px 4px;transform:translateX(-50%);
+        z-index:2;cursor:pointer;box-shadow:0 2px 3px rgba(0,0,0,.5),inset 0 -3px 4px rgba(255,255,255,.08)}
   .wkey.hintL{background:linear-gradient(#bcd6f2,#7fb0e2)}
   .wkey.hintR{background:linear-gradient(#f4d9a6,#e6b463)}
   .bkey.hintL{background:linear-gradient(#5b86b8,#2f5d94)}
@@ -449,8 +450,9 @@ function buildPiano(){
   for(let m=LOW;m<=HIGH;m++){
     if(isBlack(m)){
       const b=document.createElement('div'); b.className='bkey'; b.dataset.midi=m;
-      // 直前の白鍵との境界に配置
+      // 白鍵の境界に、白鍵1つ分の約6割の幅で配置
       b.style.left=(wi*wWidth*100)+'%';
+      b.style.width=(wWidth*0.62*100)+'%';
       p.appendChild(b); keyEls[m]=b; bindKey(b,m);
     } else wi++;
   }
