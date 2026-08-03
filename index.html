@@ -66,6 +66,20 @@
   .wkey.play{background:linear-gradient(#8ff3e9,#38c9bd)!important}
   .bkey.play{background:linear-gradient(#38c9bd,#1c9a90)!important}
 
+  /* 5度圏 */
+  .wheelWrap{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:10px;justify-content:center}
+  #wheel{flex:0 0 auto}
+  .wseg{fill:var(--panel2);stroke:var(--bg);stroke-width:1.5;cursor:default;transition:fill .15s}
+  .wseg.used{fill:#3a5a86}
+  .wseg.cur{fill:var(--accent)}
+  .wlab{fill:var(--muted);font-size:11px;font-weight:600;text-anchor:middle;dominant-baseline:central;
+        pointer-events:none;font-family:ui-sans-serif,system-ui,sans-serif}
+  .wseg.used + .wlab,.wlab.used{fill:#eef4ff}
+  .wlab.cur{fill:#08312d}
+  .wlgd{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin:0 3px 0 10px}
+  .wlgd.used{background:#3a5a86} .wlgd.cur{background:var(--accent)}
+  .wheelNote{color:var(--muted);font-size:12px}
+
   .help{color:var(--muted);font-size:12px}
   kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;
       border-radius:4px;padding:1px 6px;font-family:ui-monospace,monospace;font-size:11px}
@@ -131,6 +145,24 @@
       <div class="hand right"><h3 id="rightLabel">右手（色）</h3><div class="keys" id="rightKeys">—</div></div>
     </div>
     <div class="verdict idle" id="verdict">弾いてね<small id="verdictSub">&nbsp;</small></div>
+  </section>
+
+  <!-- 5度圏 -->
+  <section class="panel">
+    <div class="row" style="align-items:center">
+      <label style="font-size:14px;color:var(--text)">5度圏（サークル・オブ・フィフス）</label>
+      <span class="help" style="margin-left:auto">
+        <span class="wlgd used"></span> 曲で使うコード
+        <span class="wlgd cur"></span> いま練習中
+      </span>
+    </div>
+    <div class="wheelWrap">
+      <svg id="wheel" viewBox="-130 -130 260 260" width="300" height="300" aria-label="5度圏"></svg>
+      <p class="help wheelNote" style="max-width:340px">
+        円のとなりどうしは相性のよい（近い）コード。曲のコードが固まって光るほど、
+        素直な進行です。外側＝メジャー、内側＝マイナー。
+      </p>
+    </div>
   </section>
 
   <!-- 鍵盤 -->
@@ -406,6 +438,7 @@ function renderChips(){
 }
 function showCurrent(){
   renderChips();
+  updateWheel();
   const ch=progression[idx];
   if(!ch || ch.bad){
     $('chordName').textContent = ch? ch.symbol+' ?' : '—';
@@ -457,6 +490,61 @@ function buildPiano(){
     } else wi++;
   }
 }
+
+//======================================================================
+// 5度圏（サークル・オブ・フィフス）
+//======================================================================
+const FIFTHS  = [0,7,2,9,4,11,6,1,8,3,10,5];              // 時計回り（上=C）
+const MAJ_LAB = ['C','G','D','A','E','B','G♭','D♭','A♭','E♭','B♭','F'];
+const MIN_LAB = ['Am','Em','Bm','F♯m','C♯m','G♯m','E♭m','B♭m','Fm','Cm','Gm','Dm'];
+const wSeg={maj:{},min:{},labMaj:{},labMin:{}};          // pc -> element
+const SVGNS='http://www.w3.org/2000/svg';
+function polar(r,deg){ const a=deg*Math.PI/180; return [r*Math.sin(a), -r*Math.cos(a)]; }
+function sectorPath(rIn,rOut,a0,a1){
+  const [x1,y1]=polar(rOut,a0), [x2,y2]=polar(rOut,a1);
+  const [x3,y3]=polar(rIn,a1),  [x4,y4]=polar(rIn,a0);
+  return `M${x1} ${y1}A${rOut} ${rOut} 0 0 1 ${x2} ${y2}`+
+         `L${x3} ${y3}A${rIn} ${rIn} 0 0 0 ${x4} ${y4}Z`;
+}
+function buildWheel(){
+  const svg=$('wheel'); if(!svg) return; svg.innerHTML='';
+  const rings=[
+    {type:'min', rIn:34, rOut:68, rLab:51, labs:MIN_LAB, rootAt:i=>(FIFTHS[i]+9)%12},
+    {type:'maj', rIn:70, rOut:112,rLab:91, labs:MAJ_LAB, rootAt:i=>FIFTHS[i]},
+  ];
+  rings.forEach(ring=>{
+    for(let i=0;i<12;i++){
+      const c=i*30, a0=c-15, a1=c+15, pc=ring.rootAt(i);
+      const seg=document.createElementNS(SVGNS,'path');
+      seg.setAttribute('d',sectorPath(ring.rIn,ring.rOut,a0,a1));
+      seg.setAttribute('class','wseg');
+      svg.appendChild(seg);
+      const [lx,ly]=polar(ring.rLab,c);
+      const t=document.createElementNS(SVGNS,'text');
+      t.setAttribute('x',lx); t.setAttribute('y',ly);
+      t.setAttribute('class','wlab'); t.textContent=ring.labs[i];
+      svg.appendChild(t);
+      wSeg[ring.type][pc]=seg;
+      wSeg[ring.type==='maj'?'labMaj':'labMin'][pc]=t;
+    }
+  });
+}
+function updateWheel(){
+  const all=[...Object.values(wSeg.maj),...Object.values(wSeg.min),
+             ...Object.values(wSeg.labMaj),...Object.values(wSeg.labMin)];
+  all.forEach(el=>el&&el.classList.remove('used','cur'));
+  const mark=(ch,cls)=>{
+    if(!ch||ch.bad) return;
+    const minor = ch.third===3;                          // マイナー系は内側リング
+    const seg = minor? wSeg.min[ch.root] : wSeg.maj[ch.root];
+    const lab = minor? wSeg.labMin[ch.root] : wSeg.labMaj[ch.root];
+    if(seg) seg.classList.add(cls);
+    if(lab) lab.classList.add(cls);
+  };
+  progression.forEach(ch=>mark(ch,'used'));
+  mark(progression[idx],'cur');
+}
+
 function bindKey(el,m){
   el.addEventListener('mousedown',e=>{e.preventDefault();noteOn(m,'mouse');});
   el.addEventListener('mouseup',()=>noteOff(m));
@@ -610,6 +698,7 @@ function updateModeInfo(){
 
 //---- 起動 ---------------------------------------------------------
 buildPiano();
+buildWheel();
 updateModeInfo();
 setProgression($('prog').value);
 initMIDI();
