@@ -26,6 +26,9 @@
   input[type=text]{background:var(--panel2);border:1px solid var(--line);color:var(--text);
        border-radius:8px;padding:8px 10px;font-size:14px}
   input#prog{flex:1;min-width:260px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  textarea#paste{flex:1;min-width:260px;background:var(--panel2);border:1px solid var(--line);
+       color:var(--text);border-radius:8px;padding:8px 10px;font-size:13px;
+       font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical;line-height:1.5}
   select,button{background:var(--panel2);border:1px solid var(--line);color:var(--text);
        border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer}
   button:hover{border-color:var(--accent)}
@@ -85,6 +88,15 @@
              placeholder="例: Dm7 G7 Cmaj7  (スペース か | 区切り)">
       <button id="apply" class="primary">セット</button>
     </div>
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:13px;color:var(--muted)">📋 コード譜から取り込み（楽器.me などを貼り付け）</summary>
+      <div class="row" style="margin-top:8px;align-items:flex-start">
+        <textarea id="paste" rows="5"
+          placeholder="楽器.me のコード譜をそのままコピペ → 「コードを抽出」。&#10;歌詞・セクション名（[A]・サビ 等）・小節線 | は自動で無視します。&#10;例:&#10;[Aメロ]&#10;C        Am7&#10;きみのこえが&#10;F   G7   Cmaj7"></textarea>
+        <button id="importBtn" class="primary">コードを抽出</button>
+      </div>
+      <div class="help" id="importMsg" style="margin-top:6px"></div>
+    </details>
     <div class="row" style="margin-top:10px">
       <label>移調</label>
       <select id="transpose">
@@ -186,7 +198,9 @@ const ALTER = [
   ['add9',s=>s.add.push(2)], ['add11',s=>s.add.push(5)], ['add13',s=>s.add.push(9)],
   ['sus4',s=>s.th=5], ['sus2',s=>s.th=2], ['sus',s=>s.th=5],
   ['b13',s=>s.add.push(8)], ['#11',s=>s.add.push(6)], ['b9',s=>s.add.push(1)], ['#9',s=>s.add.push(3)],
-  ['b5',s=>s.f=6], ['#5',s=>s.f=8], ['no5',s=>s.f=null], ['no3',s=>s.th=null],
+  ['b5',s=>s.f=6], ['#5',s=>s.f=8], ['-5',s=>s.f=6], ['+5',s=>s.f=8],
+  ['-9',s=>s.add.push(1)], ['+9',s=>s.add.push(3)],
+  ['no5',s=>s.f=null], ['no3',s=>s.th=null],
   ['13',s=>s.add.push(9)], ['11',s=>s.add.push(5)], ['9',s=>s.add.push(2)],
 ];
 
@@ -294,6 +308,53 @@ let held=new Set();    // 押している MIDI ノート
 let currentVoicing=null;
 
 const $=id=>document.getElementById(id);
+
+//---- コード譜の取り込み（ChordPad風）------------------------------
+// 厳格なコードトークン判定。歌詞の英単語（Bad, Face, Add…）を弾く。
+const CHORD_TOKEN = new RegExp(
+  '^[A-G](?:#|b|♯|♭)?' +
+  '(?:maj7|maj9|maj13|maj|M7|M9|M|m7b5|min7|min|m7|m9|m11|m13|m6|mMaj7|m|' +
+      'dim7|dim|aug|sus2|sus4|sus|add9|add11|add13|add2|6/9|69|6|7sus4|7|9|11|13|\\+|°|ø)*' +
+  '(?:b5|#5|b9|#9|#11|b13|-5|\\+5|-9|\\+9|no3|no5)*' +
+  '(?:\\((?:[#b♯♭+\\-]?\\d+[,\\s]*)+\\))?' +      // (9) (b9,13) などのテンション
+  '(?:/[A-G](?:#|b|♯|♭)?)?$'                       // オンコード C/E
+);
+function isChordToken(tok){
+  if(tok.length>10) return false;          // 長すぎる=歌詞
+  return CHORD_TOKEN.test(tok);
+}
+// 貼り付けテキストから「コード行」だけを見つけてコードを順に抽出
+function extractChords(text){
+  const lines = text.replace(/\r/g,'')
+                    .replace(/[（]/g,'(').replace(/[）]/g,')')
+                    .split('\n');
+  const out=[];
+  for(const raw of lines){
+    const l = raw.replace(/\[[^\]]*\]/g,' ')     // [A] [Intro] [サビ]
+                 .replace(/[｜|]/g,' ')           // 小節線
+                 .replace(/[×xX*]\s*\d+/g,' ');   // ×2 x4 繰り返し
+    const toks = l.split(/\s+/).filter(Boolean);
+    if(!toks.length) continue;
+    const chords = toks.filter(isChordToken);
+    // 行のトークンの6割以上がコードなら「コード行」とみなす
+    if(chords.length && chords.length >= Math.ceil(toks.length*0.6)){
+      out.push(...chords);
+    }
+  }
+  return out;
+}
+function importFromPaste(){
+  const chords = extractChords($('paste').value);
+  const msg=$('importMsg');
+  if(!chords.length){
+    msg.textContent='コードが見つかりませんでした。コード行がある譜面を貼り付けてください。';
+    msg.style.color='var(--ng)'; return;
+  }
+  $('prog').value = chords.join(' ');
+  setProgression($('prog').value);
+  msg.textContent = chords.length+' 個のコードを取り込みました：'+chords.slice(0,12).join(' ')+(chords.length>12?' …':'');
+  msg.style.color='var(--ok)';
+}
 
 //---- 進行のセット --------------------------------------------------
 function setProgression(text){
@@ -519,6 +580,7 @@ function onMIDI(ev){
 
 //---- イベント配線 -------------------------------------------------
 $('apply').onclick=()=>setProgression($('prog').value);
+$('importBtn').onclick=importFromPaste;
 $('prog').addEventListener('keydown',e=>{if(e.key==='Enter')setProgression($('prog').value);});
 $('transpose').onchange=rebuild;
 $('style').onchange=showCurrent;
