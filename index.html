@@ -2,8 +2,16 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>JazzSteps Lite — ジャズピアノ コード練習</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1420">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="JazzSteps">
 <style>
   :root{
     --bg:#0f1420; --panel:#1a2233; --panel2:#232d42; --line:#33405c;
@@ -112,6 +120,19 @@
       </div>
       <div class="help" id="importMsg" style="margin-top:6px"></div>
     </details>
+    <div class="row" style="margin-top:10px">
+      <label>マイ曲（この端末に保存）</label>
+      <select id="songSel" title="保存した曲"><option value="">— 保存した曲 —</option></select>
+      <button id="loadSong">読込</button>
+      <button id="delSong">削除</button>
+      <input id="songName" type="text" style="max-width:150px" placeholder="曲名を付けて…">
+      <button id="saveSong" class="primary">💾 保存</button>
+      <span style="margin-left:auto"></span>
+      <button id="exportBtn" title="保存した全データをJSONで書き出し">⬇ エクスポート</button>
+      <button id="importDataBtn" title="JSONから読み込み">⬆ インポート</button>
+      <input id="importFile" type="file" accept="application/json,.json" style="display:none">
+    </div>
+    <div class="help" id="libMsg" style="margin-top:4px"></div>
     <div class="row" style="margin-top:10px">
       <label>移調</label>
       <select id="transpose">
@@ -385,6 +406,7 @@ function importFromPaste(){
   }
   $('prog').value = chords.join(' ');
   setProgression($('prog').value);
+  persistSettings();
   msg.textContent = chords.length+' 個のコードを取り込みました：'+chords.slice(0,12).join(' ')+(chords.length>12?' …':'');
   msg.style.color='var(--ok)';
 }
@@ -685,7 +707,7 @@ $('toC').onclick=()=>{
   const semi=((0-first.root)%12+12)%12; // 最初のコードのルートを C(0) へ
   const norm = semi>6? semi-12 : semi;   // -6..6 に丸め
   $('transpose').value = Math.max(-6,Math.min(6,norm));
-  rebuild();
+  rebuild(); persistSettings();
 };
 function updateModeInfo(){
   const map={
@@ -696,12 +718,127 @@ function updateModeInfo(){
   $('modeInfo').textContent=map[$('mode').value];
 }
 
+//======================================================================
+// ローカル保存（localStorage）＋ インポート / エクスポート
+//======================================================================
+const LS_SETTINGS='jazzsteps.settings', LS_SONGS='jazzsteps.songs';
+function loadJSON(k,def){ try{const v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch(e){return def;} }
+function saveJSON(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
+function getSongs(){ return loadJSON(LS_SONGS,[]); }
+function setSongs(list){ saveJSON(LS_SONGS,list); refreshSongList(); }
+
+function currentSettings(){
+  return { prog:$('prog').value, transpose:$('transpose').value, style:$('style').value,
+           mode:$('mode').value, autoNext:$('autoNext').checked,
+           showHint:$('showHint').checked, sound:$('sound').checked };
+}
+function persistSettings(){ saveJSON(LS_SETTINGS,currentSettings()); }
+let savedTranspose=null;
+function restoreSettings(){
+  const s=loadJSON(LS_SETTINGS,null); if(!s) return;
+  if(s.prog!=null) $('prog').value=s.prog;
+  if(s.style) $('style').value=s.style;
+  if(s.mode) $('mode').value=s.mode;
+  if(s.autoNext!=null) $('autoNext').checked=s.autoNext;
+  if(s.showHint!=null) $('showHint').checked=s.showHint;
+  if(s.sound!=null) $('sound').checked=s.sound;
+  savedTranspose=(s.transpose!=null)?s.transpose:null;   // 進行セット後に適用
+}
+function refreshSongList(){
+  const sel=$('songSel'), cur=sel.value, songs=getSongs();
+  sel.innerHTML='<option value="">— 保存した曲 —</option>';
+  songs.forEach((s,i)=>{const o=document.createElement('option');o.value=i;o.textContent=s.name;sel.appendChild(o);});
+  if(cur!=='' && +cur<songs.length) sel.value=cur;
+}
+function libMsg(t,ok){ const m=$('libMsg'); m.textContent=t; m.style.color=ok?'var(--ok)':'var(--ng)'; }
+
+function saveCurrentSong(){
+  const prog=$('prog').value.trim();
+  if(!prog){ libMsg('進行が空です。',false); return; }
+  let name=($('songName').value||'').trim();
+  if(!name) name='無題 '+new Date().toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  const songs=getSongs(), i=songs.findIndex(s=>s.name===name);
+  const entry={name,prog,transpose:$('transpose').value,ts:Date.now()};
+  if(i>=0) songs[i]=entry; else songs.push(entry);
+  setSongs(songs);
+  $('songName').value='';
+  const ni=getSongs().findIndex(s=>s.name===name); $('songSel').value=ni;
+  libMsg('「'+name+'」を保存しました。',true);
+}
+function loadSelectedSong(){
+  const i=$('songSel').value; if(i===''){ libMsg('曲を選んでください。',false); return; }
+  const s=getSongs()[+i]; if(!s) return;
+  $('prog').value=s.prog; setProgression(s.prog);
+  if(s.transpose!=null){ $('transpose').value=s.transpose; rebuild(); }
+  persistSettings();
+  libMsg('「'+s.name+'」を読み込みました。',true);
+}
+function deleteSelectedSong(){
+  const i=$('songSel').value; if(i===''){ libMsg('曲を選んでください。',false); return; }
+  const songs=getSongs(), name=(songs[+i]||{}).name; songs.splice(+i,1); setSongs(songs);
+  $('songSel').value=''; libMsg('「'+name+'」を削除しました。',true);
+}
+function exportData(){
+  const data={app:'JazzSteps Lite',version:1,exportedAt:new Date().toISOString(),
+              settings:currentSettings(),songs:getSongs()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download='jazzsteps-data-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  libMsg('エクスポートしました（'+getSongs().length+'曲）。',true);
+}
+function importData(file){
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const data=JSON.parse(rd.result);
+      const inSongs=Array.isArray(data.songs)?data.songs:[];
+      const map=new Map(getSongs().map(s=>[s.name,s]));          // 曲名でマージ（取込側優先）
+      inSongs.forEach(s=>{ if(s&&s.name&&s.prog) map.set(s.name,{name:s.name,prog:s.prog,transpose:s.transpose,ts:s.ts||Date.now()}); });
+      setSongs([...map.values()]);
+      if(data.settings){
+        const s=data.settings;
+        if(s.style) $('style').value=s.style;
+        if(s.mode){ $('mode').value=s.mode; updateModeInfo(); }
+        if(s.autoNext!=null) $('autoNext').checked=s.autoNext;
+        if(s.showHint!=null) $('showHint').checked=s.showHint;
+        if(s.sound!=null) $('sound').checked=s.sound;
+        if(s.prog){ $('prog').value=s.prog; setProgression(s.prog); if(s.transpose!=null){ $('transpose').value=s.transpose; rebuild(); } }
+        persistSettings();
+      }
+      libMsg('インポート完了（'+inSongs.length+'曲を取り込み）。',true);
+    }catch(e){ libMsg('読み込めませんでした（JSON形式を確認してください）。',false); }
+  };
+  rd.readAsText(file);
+}
+
+// ライブラリUIの配線
+$('saveSong').onclick=saveCurrentSong;
+$('loadSong').onclick=loadSelectedSong;
+$('delSong').onclick=deleteSelectedSong;
+$('songSel').onchange=()=>{ if($('songSel').value!=='') loadSelectedSong(); };
+$('exportBtn').onclick=exportData;
+$('importDataBtn').onclick=()=>$('importFile').click();
+$('importFile').onchange=e=>{ const f=e.target.files[0]; if(f) importData(f); e.target.value=''; };
+$('songName').addEventListener('keydown',e=>{ if(e.key==='Enter') saveCurrentSong(); });
+// 設定の自動保存
+['transpose','style','mode','autoNext','showHint','sound'].forEach(id=>$(id).addEventListener('change',persistSettings));
+$('apply').addEventListener('click',persistSettings);
+$('prog').addEventListener('change',persistSettings);
+
 //---- 起動 ---------------------------------------------------------
 buildPiano();
 buildWheel();
+restoreSettings();          // 保存済みの設定・進行を復元
+refreshSongList();
 updateModeInfo();
 setProgression($('prog').value);
+if(savedTranspose!=null){ $('transpose').value=savedTranspose; rebuild(); }
 initMIDI();
+// PWA: Service Worker 登録（対応ブラウザのみ）
+if('serviceWorker' in navigator){
+  addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
 </script>
 </body>
 </html>
