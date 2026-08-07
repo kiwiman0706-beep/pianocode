@@ -205,6 +205,7 @@
   <!-- 鍵盤 -->
   <section class="panel">
     <div class="pianoWrap"><div class="piano" id="piano"></div></div>
+    <div class="help" id="midiMon" style="margin-top:6px">MIDI受信モニタ: —（鍵盤を弾くとここに表示されます）</div>
     <div class="row" style="margin-top:10px">
       <button id="prev">← 前</button>
       <button id="next">次 →</button>
@@ -781,22 +782,41 @@ addEventListener('keyup',e=>{
 
 //---- Web MIDI -----------------------------------------------------
 function initMIDI(){
-  if(!navigator.requestMIDIAccess){ $('midiStatus').textContent='MIDI: 非対応ブラウザ'; return; }
+  if(!navigator.requestMIDIAccess){
+    // file:// や 素のhttp:// では Web MIDI が使えない
+    $('midiStatus').textContent = window.isSecureContext
+      ? 'MIDI: 非対応ブラウザ（Chrome/Edge推奨）'
+      : 'MIDI: 使えません（HTTPS か localhost で開いてください）';
+    return;
+  }
   navigator.requestMIDIAccess().then(acc=>{
     const hook=()=>{
       const ins=[...acc.inputs.values()];
-      ins.forEach(inp=>inp.onmidimessage=onMIDI);
+      ins.forEach(inp=>{ try{ inp.open&&inp.open(); }catch(e){} inp.onmidimessage=onMIDI; });
       const st=$('midiStatus');
       if(ins.length){ st.textContent='MIDI: '+ins.map(i=>i.name).join(', '); st.classList.add('on'); }
       else { st.textContent='MIDI: 機器を接続してください'; st.classList.remove('on'); }
     };
     hook(); acc.onstatechange=hook;
-  }).catch(()=>{ $('midiStatus').textContent='MIDI: 許可されませんでした'; });
+  }).catch(()=>{ $('midiStatus').textContent='MIDI: 許可されませんでした（ページ再読込で許可を）'; });
 }
+let midiCount=0;
+const NOTE_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+// 画面の鍵盤範囲(LOW..HIGH)に、オクターブ折り返しで収める（ピッチクラスは保つ）
+function foldToRange(m){ while(m<LOW) m+=12; while(m>HIGH) m-=12; return m; }
 function onMIDI(ev){
-  const [status,note,vel]=ev.data; const cmd=status&0xf0;
-  if(cmd===0x90 && vel>0) noteOn(note,'midi');
-  else if(cmd===0x80 || (cmd===0x90 && vel===0)) noteOff(note);
+  const d=ev.data, status=d[0], note=d[1], vel=d[2]; const cmd=status&0xf0;
+  // 受信モニタ（何が届いているか可視化）
+  if(cmd===0x90 || cmd===0x80){
+    midiCount++;
+    const kind = (cmd===0x90 && vel>0) ? 'ON ' : 'OFF';
+    const nm = (note!=null) ? NOTE_NAMES[note%12]+(Math.floor(note/12)-1) : '';
+    $('midiMon').textContent =
+      `MIDI受信 #${midiCount}: ${kind} note=${note}(${nm}) vel=${vel} ch=${(status&0x0f)+1}`;
+    $('midiMon').style.color='var(--ok)';
+  }
+  if(cmd===0x90 && vel>0) noteOn(foldToRange(note),'midi');
+  else if(cmd===0x80 || (cmd===0x90 && vel===0)) noteOff(foldToRange(note));
 }
 
 //---- イベント配線 -------------------------------------------------
