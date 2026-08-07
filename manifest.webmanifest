@@ -1,0 +1,18 @@
+{
+  "name": "JazzSteps Lite — ジャズピアノ コード練習",
+  "short_name": "JazzSteps",
+  "description": "ジャズピアノのコード進行を最小運指で練習。5度圏表示・コード譜取り込み・ローカル保存対応。",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1420",
+  "theme_color": "#0f1420",
+  "categories": ["music", "education"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

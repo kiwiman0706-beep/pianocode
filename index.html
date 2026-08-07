@@ -2,8 +2,16 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>JazzSteps Lite — ジャズピアノ コード練習</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1420">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="JazzSteps">
 <style>
   :root{
     --bg:#0f1420; --panel:#1a2233; --panel2:#232d42; --line:#33405c;
@@ -26,6 +34,9 @@
   input[type=text]{background:var(--panel2);border:1px solid var(--line);color:var(--text);
        border-radius:8px;padding:8px 10px;font-size:14px}
   input#prog{flex:1;min-width:260px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  textarea#paste{flex:1;min-width:260px;background:var(--panel2);border:1px solid var(--line);
+       color:var(--text);border-radius:8px;padding:8px 10px;font-size:13px;
+       font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical;line-height:1.5}
   select,button{background:var(--panel2);border:1px solid var(--line);color:var(--text);
        border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer}
   button:hover{border-color:var(--accent)}
@@ -53,8 +64,9 @@
   .wkey{position:relative;flex:1;background:linear-gradient(#fff,#eef);border:1px solid #99a;
         border-radius:0 0 5px 5px;cursor:pointer}
   .wkey .lab{position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:9px;color:#556}
-  .bkey{position:absolute;top:0;width:60%;height:62%;background:linear-gradient(#333,#000);
-        border:1px solid #000;border-radius:0 0 4px 4px;transform:translateX(-50%);z-index:2;cursor:pointer}
+  .bkey{position:absolute;top:0;height:62%;background:linear-gradient(#3a3f4a,#0a0d12);
+        border:1px solid #000;border-top:none;border-radius:0 0 4px 4px;transform:translateX(-50%);
+        z-index:2;cursor:pointer;box-shadow:0 2px 3px rgba(0,0,0,.5),inset 0 -3px 4px rgba(255,255,255,.08)}
   .wkey.hintL{background:linear-gradient(#bcd6f2,#7fb0e2)}
   .wkey.hintR{background:linear-gradient(#f4d9a6,#e6b463)}
   .bkey.hintL{background:linear-gradient(#5b86b8,#2f5d94)}
@@ -62,6 +74,23 @@
   .wkey.play{background:linear-gradient(#8ff3e9,#38c9bd)!important}
   .bkey.play{background:linear-gradient(#38c9bd,#1c9a90)!important}
 
+  /* 5度圏 */
+  .wheelWrap{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:10px;justify-content:center}
+  #wheel{flex:0 0 auto}
+  .wseg{fill:var(--panel2);stroke:var(--bg);stroke-width:1.5;cursor:default;transition:fill .15s}
+  .wseg.used{fill:#3a5a86}
+  .wseg.cur{fill:var(--accent)}
+  .wlab{fill:var(--muted);font-size:11px;font-weight:600;text-anchor:middle;dominant-baseline:central;
+        pointer-events:none;font-family:ui-sans-serif,system-ui,sans-serif}
+  .wseg.used + .wlab,.wlab.used{fill:#eef4ff}
+  .wlab.cur{fill:#08312d}
+  .wlgd{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin:0 3px 0 10px}
+  .wlgd.used{background:#3a5a86} .wlgd.cur{background:var(--accent)}
+  .wheelNote{color:var(--muted);font-size:12px}
+
+  .bmbtn{display:inline-block;background:var(--accent);color:#08312d;font-weight:700;
+         text-decoration:none;border-radius:7px;padding:3px 10px;margin:0 2px;cursor:grab}
+  .bmbtn:active{cursor:grabbing}
   .help{color:var(--muted);font-size:12px}
   kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;
       border-radius:4px;padding:1px 6px;font-family:ui-monospace,monospace;font-size:11px}
@@ -85,12 +114,51 @@
              placeholder="例: Dm7 G7 Cmaj7  (スペース か | 区切り)">
       <button id="apply" class="primary">セット</button>
     </div>
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:13px;color:var(--muted)">📋 コード譜から取り込み（楽器.me などを貼り付け）</summary>
+      <div class="row" style="margin-top:8px;align-items:flex-start">
+        <textarea id="paste" rows="5"
+          placeholder="楽器.me のコード譜をそのままコピペ → 「コードを抽出」。&#10;歌詞・セクション名（[A]・サビ 等）・小節線 | は自動で無視します。&#10;例:&#10;[Aメロ]&#10;C        Am7&#10;きみのこえが&#10;F   G7   Cmaj7"></textarea>
+        <button id="importBtn" class="primary">コードを抽出</button>
+      </div>
+      <div class="help" id="importMsg" style="margin-top:6px"></div>
+    </details>
+    <details style="margin-top:8px">
+      <summary style="cursor:pointer;font-size:13px;color:var(--muted)">🎼 楽器.me から1タップ取り込み（ブックマークレット）</summary>
+      <div class="help" style="margin-top:8px;line-height:1.9">
+        楽器.me はコピー禁止のため、ページのHTMLを直接読む「ブックマークレット」を使います（ChordPad と同じ仕組み）。<br>
+        <b>① 登録：</b>
+        <span class="bmreg">PCは <a id="bmLink" href="#" class="bmbtn">🎹 コード取込</a> をブックマークバーへドラッグ</span>
+        ／ スマホは <button id="bmCopy" type="button">コードをコピー</button> して「新規ブックマーク」のURL欄に貼り付け<br>
+        <b>② 楽器.me でコード譜ページを開く</b><br>
+        <b>③ そのページでこのブックマークを実行</b> → このアプリが開いて自動でコードが入ります（入った後は編集も可）
+      </div>
+      <div class="help" id="bmMsg" style="margin-top:4px"></div>
+    </details>
+    <div class="row" style="margin-top:10px">
+      <label>マイ曲（この端末に保存）</label>
+      <select id="songSel" title="保存した曲"><option value="">— 保存した曲 —</option></select>
+      <button id="loadSong">読込</button>
+      <button id="delSong">削除</button>
+      <input id="songName" type="text" style="max-width:150px" placeholder="曲名を付けて…">
+      <button id="saveSong" class="primary">💾 保存</button>
+      <span style="margin-left:auto"></span>
+      <button id="exportBtn" title="保存した全データをJSONで書き出し">⬇ エクスポート</button>
+      <button id="importDataBtn" title="JSONから読み込み">⬆ インポート</button>
+      <input id="importFile" type="file" accept="application/json,.json" style="display:none">
+    </div>
+    <div class="help" id="libMsg" style="margin-top:4px"></div>
     <div class="row" style="margin-top:10px">
       <label>移調</label>
       <select id="transpose">
         <option value="0" selected>±0</option>
       </select>
       <button id="toC">最初のコードをCに</button>
+      <label style="margin-left:12px">ボイシング</label>
+      <select id="style">
+        <option value="easy" selected>覚えやすい（ルート+5th / 3rd+テンション）</option>
+        <option value="shell">ジャズ定番（シェル：ルート / 3rd+7th）</option>
+      </select>
       <label style="margin-left:12px">判定モード</label>
       <select id="mode">
         <option value="loose" selected>ゆるい（ルート+3rd+7th）</option>
@@ -109,10 +177,28 @@
   <section class="panel now">
     <div class="chordName" id="chordName">—</div>
     <div class="voicing">
-      <div class="hand left"><h3>左手（土台：ルート+5th）</h3><div class="keys" id="leftKeys">—</div></div>
-      <div class="hand right"><h3>右手（色：3rd+テンション）</h3><div class="keys" id="rightKeys">—</div></div>
+      <div class="hand left"><h3 id="leftLabel">左手（土台）</h3><div class="keys" id="leftKeys">—</div></div>
+      <div class="hand right"><h3 id="rightLabel">右手（色）</h3><div class="keys" id="rightKeys">—</div></div>
     </div>
     <div class="verdict idle" id="verdict">弾いてね<small id="verdictSub">&nbsp;</small></div>
+  </section>
+
+  <!-- 5度圏 -->
+  <section class="panel">
+    <div class="row" style="align-items:center">
+      <label style="font-size:14px;color:var(--text)">5度圏（サークル・オブ・フィフス）</label>
+      <span class="help" style="margin-left:auto">
+        <span class="wlgd used"></span> 曲で使うコード
+        <span class="wlgd cur"></span> いま練習中
+      </span>
+    </div>
+    <div class="wheelWrap">
+      <svg id="wheel" viewBox="-130 -130 260 260" width="300" height="300" aria-label="5度圏"></svg>
+      <p class="help wheelNote" style="max-width:340px">
+        円のとなりどうしは相性のよい（近い）コード。曲のコードが固まって光るほど、
+        素直な進行です。外側＝メジャー、内側＝マイナー。
+      </p>
+    </div>
   </section>
 
   <!-- 鍵盤 -->
@@ -181,7 +267,9 @@ const ALTER = [
   ['add9',s=>s.add.push(2)], ['add11',s=>s.add.push(5)], ['add13',s=>s.add.push(9)],
   ['sus4',s=>s.th=5], ['sus2',s=>s.th=2], ['sus',s=>s.th=5],
   ['b13',s=>s.add.push(8)], ['#11',s=>s.add.push(6)], ['b9',s=>s.add.push(1)], ['#9',s=>s.add.push(3)],
-  ['b5',s=>s.f=6], ['#5',s=>s.f=8], ['no5',s=>s.f=null], ['no3',s=>s.th=null],
+  ['b5',s=>s.f=6], ['#5',s=>s.f=8], ['-5',s=>s.f=6], ['+5',s=>s.f=8],
+  ['-9',s=>s.add.push(1)], ['+9',s=>s.add.push(3)],
+  ['no5',s=>s.f=null], ['no3',s=>s.th=null],
   ['13',s=>s.add.push(9)], ['11',s=>s.add.push(5)], ['9',s=>s.add.push(2)],
 ];
 
@@ -222,18 +310,28 @@ function parseChord(sym){
 }
 
 //======================================================================
-// ボイシング生成
-//  左手 = ルート + 5th （C3域に固定）
-//  右手 = 3rd + 7th + テンション （C4域に固定 = ホームポジション維持）
+// ボイシング生成（2流儀を切替）
+//  easy  = 覚えやすい : 左=ルート+5th / 右=3rd+7th+テンション
+//  shell = ジャズ定番 : 左=ルートのみ / 右=3rd+7th+テンション（5thは省く）
+//                       ※7thを持たない三和音・6th系は5thも残して薄すぎ防止
+//  いずれも各音のオクターブ位置を固定 = ホームポジション維持
 //======================================================================
-function voicing(ch){
+function voicing(ch, style){
   const r = ch.root;
+  const hasSeventh = ch.seventh!=null;
+  const dropFifth  = (style==='shell' && hasSeventh); // ジャズは7th系で5thを省略
   const left = [LEFT_BASE + r];
-  if(ch.fifth!=null) left.push(LEFT_BASE + r + ch.fifth);
-  const rightPCs = ch.intervals.filter(iv => iv!==0 && iv!==ch.fifth);
+  if(!dropFifth && style==='easy' && ch.fifth!=null) left.push(LEFT_BASE + r + ch.fifth);
+  // 右手 = 構成音からルートと（省く場合の）5thを除いたもの
+  const rightPCs = ch.intervals.filter(iv => iv!==0 &&
+                    !(style==='easy' && iv===ch.fifth) &&
+                    !(dropFifth && iv===ch.fifth));
   const right = rightPCs.map(iv => RIGHT_BASE + ((r+iv)%12)).sort((a,b)=>a-b);
-  return {left, right, all:[...left,...right]};
+  return {left, right, all:[...left,...right],
+          leftLabel: style==='shell' ? 'ルート' : 'ルート+5th',
+          rightLabel: (style==='shell'&&hasSeventh) ? '3rd+7th+テンション（5th省略）' : '3rd+テンション'};
 }
+function currentStyle(){ return document.getElementById('style').value; }
 
 //======================================================================
 // 判定
@@ -279,6 +377,113 @@ let held=new Set();    // 押している MIDI ノート
 let currentVoicing=null;
 
 const $=id=>document.getElementById(id);
+
+//---- コード譜の取り込み（ChordPad風）------------------------------
+// 厳格なコードトークン判定。歌詞の英単語（Bad, Face, Add…）を弾く。
+const CHORD_TOKEN = new RegExp(
+  '^[A-G](?:#|b|♯|♭)?' +
+  '(?:maj7|maj9|maj13|maj|M7|M9|M|m7b5|min7|min|m7|m9|m11|m13|m6|mMaj7|m|' +
+      'dim7|dim|aug|sus2|sus4|sus|add9|add11|add13|add2|6/9|69|6|7sus4|7|9|11|13|\\+|°|ø)*' +
+  '(?:b5|#5|b9|#9|#11|b13|-5|\\+5|-9|\\+9|no3|no5)*' +
+  '(?:\\((?:[#b♯♭+\\-]?\\d+[,\\s]*)+\\))?' +      // (9) (b9,13) などのテンション
+  '(?:/[A-G](?:#|b|♯|♭)?)?$'                       // オンコード C/E
+);
+function isChordToken(tok){
+  if(tok.length>10) return false;          // 長すぎる=歌詞
+  return CHORD_TOKEN.test(tok);
+}
+// 貼り付けテキストから「コード行」だけを見つけてコードを順に抽出
+function extractChords(text){
+  const lines = text.replace(/\r/g,'')
+                    .replace(/[（]/g,'(').replace(/[）]/g,')')
+                    .split('\n');
+  const out=[];
+  for(const raw of lines){
+    const l = raw.replace(/\[[^\]]*\]/g,' ')     // [A] [Intro] [サビ]
+                 .replace(/[｜|]/g,' ')           // 小節線
+                 .replace(/[×xX*]\s*\d+/g,' ');   // ×2 x4 繰り返し
+    const toks = l.split(/\s+/).filter(Boolean);
+    if(!toks.length) continue;
+    const chords = toks.filter(isChordToken);
+    // 行のトークンの6割以上がコードなら「コード行」とみなす
+    if(chords.length && chords.length >= Math.ceil(toks.length*0.6)){
+      out.push(...chords);
+    }
+  }
+  return out;
+}
+function importFromPaste(){
+  const chords = extractChords($('paste').value);
+  const msg=$('importMsg');
+  if(!chords.length){
+    msg.textContent='コードが見つかりませんでした。コード行がある譜面を貼り付けてください。';
+    msg.style.color='var(--ng)'; return;
+  }
+  $('prog').value = chords.join(' ');
+  setProgression($('prog').value);
+  persistSettings();
+  msg.textContent = chords.length+' 個のコードを取り込みました：'+chords.slice(0,12).join(' ')+(chords.length>12?' …':'');
+  msg.style.color='var(--ok)';
+}
+
+// ブックマークレットから戻ってきたコードを受け取る（#import=... / #prog=...）
+function importFromHash(){
+  const m=(location.hash||'').match(/[#&](?:import|prog)=([^&]*)/);
+  if(!m) return false;
+  let text='';
+  try{ text=decodeURIComponent(m[1].replace(/\+/g,' ')); }catch(e){ text=m[1]; }
+  text=text.trim();
+  if(!text) return false;
+  $('prog').value=text;
+  setProgression(text);
+  persistSettings();
+  history.replaceState(null,'',location.pathname+location.search); // ハッシュを消す
+  const msg=$('importMsg');
+  if(msg){ msg.textContent='ブックマークレットから '+rawSymbols.length+' 個のコードを取り込みました。';
+           msg.style.color='var(--ok)'; }
+  return true;
+}
+
+// 楽器.me 等のページ上で実行する抽出コード（この関数の中身がブックマークレットになる）
+function BM(APP){
+  var RE=/^[A-G](?:#|b|♯|♭)?(?:maj7|maj9|maj13|maj|M7|M9|M|m7b5|min7|min|m7|m9|m11|m13|m6|mMaj7|m|dim7|dim|aug|sus2|sus4|sus|add9|add11|add13|add2|6\/9|69|6|7sus4|7|9|11|13|\+|°|ø)*(?:b5|#5|b9|#9|#11|b13|-5|\+5|-9|\+9|no3|no5)*(?:\((?:[#b♯♭+\-]?\d+[,\s]*)+\))?(?:\/[A-G](?:#|b|♯|♭)?)?$/;
+  function isCh(t){ return t && t.length<=10 && RE.test(t); }
+  function fromText(txt){
+    var out=[], L=txt.replace(/\r/g,'').replace(/（/g,'(').replace(/）/g,')').split('\n');
+    for(var i=0;i<L.length;i++){
+      var l=L[i].replace(/\[[^\]]*\]/g,' ').replace(/[｜|]/g,' ').replace(/[×xX*]\s*\d+/g,' ');
+      var tk=l.split(/\s+/).filter(Boolean); if(!tk.length) continue;
+      var c=tk.filter(isCh);
+      if(c.length && c.length>=Math.ceil(tk.length*0.6)) out.push.apply(out,c);
+    }
+    return out;
+  }
+  var t=fromText(document.body.innerText||'');
+  if(!t.length){ // フォールバック: リーフ要素からコードだけ拾う
+    var leaf=[], a=document.querySelectorAll('body *');
+    for(var i=0;i<a.length;i++){ if(a[i].children.length) continue;
+      var s=(a[i].textContent||'').trim(); if(isCh(s)) leaf.push(s); }
+    t=leaf;
+  }
+  if(!t.length){ alert('コードが見つかりませんでした。コード譜の本文が表示された状態で実行してください。'); return; }
+  location.href=APP+'#import='+encodeURIComponent(t.join(' '));
+}
+function buildBookmarklet(){
+  const appUrl=location.origin+location.pathname;
+  const src='('+BM.toString()+')('+JSON.stringify(appUrl)+')';
+  const href='javascript:'+encodeURIComponent(src);
+  const a=$('bmLink'); if(a) a.href=href;
+  const btn=$('bmCopy');
+  if(btn) btn.onclick=()=>{
+    const done=ok=>{ const m=$('bmMsg'); m.textContent= ok
+      ? 'コピーしました。ブラウザで「ブックマークを追加」→ 名前は「コード取込」→ URL欄に貼り付けて保存してください。'
+      : 'コピーできませんでした。上の緑ボタンを長押しして「リンクをコピー」してください。';
+      m.style.color= ok?'var(--ok)':'var(--ng)'; };
+    (navigator.clipboard&&navigator.clipboard.writeText
+      ? navigator.clipboard.writeText(href) : Promise.reject()
+    ).then(()=>done(true),()=>done(false));
+  };
+}
 
 //---- 進行のセット --------------------------------------------------
 function setProgression(text){
@@ -329,6 +534,7 @@ function renderChips(){
 }
 function showCurrent(){
   renderChips();
+  updateWheel();
   const ch=progression[idx];
   if(!ch || ch.bad){
     $('chordName').textContent = ch? ch.symbol+' ?' : '—';
@@ -337,8 +543,10 @@ function showCurrent(){
     setVerdict('idle','解析できません','コード名を確認してね');
     return;
   }
-  currentVoicing=voicing(ch);
+  currentVoicing=voicing(ch, currentStyle());
   $('chordName').textContent=ch.symbol;
+  $('leftLabel').textContent  = '左手（土台：'+currentVoicing.leftLabel+'）';
+  $('rightLabel').textContent = '右手（色：'+currentVoicing.rightLabel+'）';
   $('leftKeys').textContent  = currentVoicing.left.map(noteName).join('  ') || '—';
   $('rightKeys').textContent = currentVoicing.right.map(noteName).join('  ') || '—';
   paintHints();
@@ -371,12 +579,68 @@ function buildPiano(){
   for(let m=LOW;m<=HIGH;m++){
     if(isBlack(m)){
       const b=document.createElement('div'); b.className='bkey'; b.dataset.midi=m;
-      // 直前の白鍵との境界に配置
+      // 白鍵の境界に、白鍵1つ分の約6割の幅で配置
       b.style.left=(wi*wWidth*100)+'%';
+      b.style.width=(wWidth*0.62*100)+'%';
       p.appendChild(b); keyEls[m]=b; bindKey(b,m);
     } else wi++;
   }
 }
+
+//======================================================================
+// 5度圏（サークル・オブ・フィフス）
+//======================================================================
+const FIFTHS  = [0,7,2,9,4,11,6,1,8,3,10,5];              // 時計回り（上=C）
+const MAJ_LAB = ['C','G','D','A','E','B','G♭','D♭','A♭','E♭','B♭','F'];
+const MIN_LAB = ['Am','Em','Bm','F♯m','C♯m','G♯m','E♭m','B♭m','Fm','Cm','Gm','Dm'];
+const wSeg={maj:{},min:{},labMaj:{},labMin:{}};          // pc -> element
+const SVGNS='http://www.w3.org/2000/svg';
+function polar(r,deg){ const a=deg*Math.PI/180; return [r*Math.sin(a), -r*Math.cos(a)]; }
+function sectorPath(rIn,rOut,a0,a1){
+  const [x1,y1]=polar(rOut,a0), [x2,y2]=polar(rOut,a1);
+  const [x3,y3]=polar(rIn,a1),  [x4,y4]=polar(rIn,a0);
+  return `M${x1} ${y1}A${rOut} ${rOut} 0 0 1 ${x2} ${y2}`+
+         `L${x3} ${y3}A${rIn} ${rIn} 0 0 0 ${x4} ${y4}Z`;
+}
+function buildWheel(){
+  const svg=$('wheel'); if(!svg) return; svg.innerHTML='';
+  const rings=[
+    {type:'min', rIn:34, rOut:68, rLab:51, labs:MIN_LAB, rootAt:i=>(FIFTHS[i]+9)%12},
+    {type:'maj', rIn:70, rOut:112,rLab:91, labs:MAJ_LAB, rootAt:i=>FIFTHS[i]},
+  ];
+  rings.forEach(ring=>{
+    for(let i=0;i<12;i++){
+      const c=i*30, a0=c-15, a1=c+15, pc=ring.rootAt(i);
+      const seg=document.createElementNS(SVGNS,'path');
+      seg.setAttribute('d',sectorPath(ring.rIn,ring.rOut,a0,a1));
+      seg.setAttribute('class','wseg');
+      svg.appendChild(seg);
+      const [lx,ly]=polar(ring.rLab,c);
+      const t=document.createElementNS(SVGNS,'text');
+      t.setAttribute('x',lx); t.setAttribute('y',ly);
+      t.setAttribute('class','wlab'); t.textContent=ring.labs[i];
+      svg.appendChild(t);
+      wSeg[ring.type][pc]=seg;
+      wSeg[ring.type==='maj'?'labMaj':'labMin'][pc]=t;
+    }
+  });
+}
+function updateWheel(){
+  const all=[...Object.values(wSeg.maj),...Object.values(wSeg.min),
+             ...Object.values(wSeg.labMaj),...Object.values(wSeg.labMin)];
+  all.forEach(el=>el&&el.classList.remove('used','cur'));
+  const mark=(ch,cls)=>{
+    if(!ch||ch.bad) return;
+    const minor = ch.third===3;                          // マイナー系は内側リング
+    const seg = minor? wSeg.min[ch.root] : wSeg.maj[ch.root];
+    const lab = minor? wSeg.labMin[ch.root] : wSeg.labMaj[ch.root];
+    if(seg) seg.classList.add(cls);
+    if(lab) lab.classList.add(cls);
+  };
+  progression.forEach(ch=>mark(ch,'used'));
+  mark(progression[idx],'cur');
+}
+
 function bindKey(el,m){
   el.addEventListener('mousedown',e=>{e.preventDefault();noteOn(m,'mouse');});
   el.addEventListener('mouseup',()=>noteOff(m));
@@ -502,8 +766,10 @@ function onMIDI(ev){
 
 //---- イベント配線 -------------------------------------------------
 $('apply').onclick=()=>setProgression($('prog').value);
+$('importBtn').onclick=importFromPaste;
 $('prog').addEventListener('keydown',e=>{if(e.key==='Enter')setProgression($('prog').value);});
 $('transpose').onchange=rebuild;
+$('style').onchange=showCurrent;
 $('mode').onchange=()=>{ updateModeInfo(); evaluate(); };
 $('showHint').onchange=paintHints;
 $('next').onclick=()=>go(1);
@@ -515,7 +781,7 @@ $('toC').onclick=()=>{
   const semi=((0-first.root)%12+12)%12; // 最初のコードのルートを C(0) へ
   const norm = semi>6? semi-12 : semi;   // -6..6 に丸め
   $('transpose').value = Math.max(-6,Math.min(6,norm));
-  rebuild();
+  rebuild(); persistSettings();
 };
 function updateModeInfo(){
   const map={
@@ -526,11 +792,130 @@ function updateModeInfo(){
   $('modeInfo').textContent=map[$('mode').value];
 }
 
+//======================================================================
+// ローカル保存（localStorage）＋ インポート / エクスポート
+//======================================================================
+const LS_SETTINGS='jazzsteps.settings', LS_SONGS='jazzsteps.songs';
+function loadJSON(k,def){ try{const v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch(e){return def;} }
+function saveJSON(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
+function getSongs(){ return loadJSON(LS_SONGS,[]); }
+function setSongs(list){ saveJSON(LS_SONGS,list); refreshSongList(); }
+
+function currentSettings(){
+  return { prog:$('prog').value, transpose:$('transpose').value, style:$('style').value,
+           mode:$('mode').value, autoNext:$('autoNext').checked,
+           showHint:$('showHint').checked, sound:$('sound').checked };
+}
+function persistSettings(){ saveJSON(LS_SETTINGS,currentSettings()); }
+let savedTranspose=null;
+function restoreSettings(){
+  const s=loadJSON(LS_SETTINGS,null); if(!s) return;
+  if(s.prog!=null) $('prog').value=s.prog;
+  if(s.style) $('style').value=s.style;
+  if(s.mode) $('mode').value=s.mode;
+  if(s.autoNext!=null) $('autoNext').checked=s.autoNext;
+  if(s.showHint!=null) $('showHint').checked=s.showHint;
+  if(s.sound!=null) $('sound').checked=s.sound;
+  savedTranspose=(s.transpose!=null)?s.transpose:null;   // 進行セット後に適用
+}
+function refreshSongList(){
+  const sel=$('songSel'), cur=sel.value, songs=getSongs();
+  sel.innerHTML='<option value="">— 保存した曲 —</option>';
+  songs.forEach((s,i)=>{const o=document.createElement('option');o.value=i;o.textContent=s.name;sel.appendChild(o);});
+  if(cur!=='' && +cur<songs.length) sel.value=cur;
+}
+function libMsg(t,ok){ const m=$('libMsg'); m.textContent=t; m.style.color=ok?'var(--ok)':'var(--ng)'; }
+
+function saveCurrentSong(){
+  const prog=$('prog').value.trim();
+  if(!prog){ libMsg('進行が空です。',false); return; }
+  let name=($('songName').value||'').trim();
+  if(!name) name='無題 '+new Date().toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  const songs=getSongs(), i=songs.findIndex(s=>s.name===name);
+  const entry={name,prog,transpose:$('transpose').value,ts:Date.now()};
+  if(i>=0) songs[i]=entry; else songs.push(entry);
+  setSongs(songs);
+  $('songName').value='';
+  const ni=getSongs().findIndex(s=>s.name===name); $('songSel').value=ni;
+  libMsg('「'+name+'」を保存しました。',true);
+}
+function loadSelectedSong(){
+  const i=$('songSel').value; if(i===''){ libMsg('曲を選んでください。',false); return; }
+  const s=getSongs()[+i]; if(!s) return;
+  $('prog').value=s.prog; setProgression(s.prog);
+  if(s.transpose!=null){ $('transpose').value=s.transpose; rebuild(); }
+  persistSettings();
+  libMsg('「'+s.name+'」を読み込みました。',true);
+}
+function deleteSelectedSong(){
+  const i=$('songSel').value; if(i===''){ libMsg('曲を選んでください。',false); return; }
+  const songs=getSongs(), name=(songs[+i]||{}).name; songs.splice(+i,1); setSongs(songs);
+  $('songSel').value=''; libMsg('「'+name+'」を削除しました。',true);
+}
+function exportData(){
+  const data={app:'JazzSteps Lite',version:1,exportedAt:new Date().toISOString(),
+              settings:currentSettings(),songs:getSongs()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download='jazzsteps-data-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  libMsg('エクスポートしました（'+getSongs().length+'曲）。',true);
+}
+function importData(file){
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const data=JSON.parse(rd.result);
+      const inSongs=Array.isArray(data.songs)?data.songs:[];
+      const map=new Map(getSongs().map(s=>[s.name,s]));          // 曲名でマージ（取込側優先）
+      inSongs.forEach(s=>{ if(s&&s.name&&s.prog) map.set(s.name,{name:s.name,prog:s.prog,transpose:s.transpose,ts:s.ts||Date.now()}); });
+      setSongs([...map.values()]);
+      if(data.settings){
+        const s=data.settings;
+        if(s.style) $('style').value=s.style;
+        if(s.mode){ $('mode').value=s.mode; updateModeInfo(); }
+        if(s.autoNext!=null) $('autoNext').checked=s.autoNext;
+        if(s.showHint!=null) $('showHint').checked=s.showHint;
+        if(s.sound!=null) $('sound').checked=s.sound;
+        if(s.prog){ $('prog').value=s.prog; setProgression(s.prog); if(s.transpose!=null){ $('transpose').value=s.transpose; rebuild(); } }
+        persistSettings();
+      }
+      libMsg('インポート完了（'+inSongs.length+'曲を取り込み）。',true);
+    }catch(e){ libMsg('読み込めませんでした（JSON形式を確認してください）。',false); }
+  };
+  rd.readAsText(file);
+}
+
+// ライブラリUIの配線
+$('saveSong').onclick=saveCurrentSong;
+$('loadSong').onclick=loadSelectedSong;
+$('delSong').onclick=deleteSelectedSong;
+$('songSel').onchange=()=>{ if($('songSel').value!=='') loadSelectedSong(); };
+$('exportBtn').onclick=exportData;
+$('importDataBtn').onclick=()=>$('importFile').click();
+$('importFile').onchange=e=>{ const f=e.target.files[0]; if(f) importData(f); e.target.value=''; };
+$('songName').addEventListener('keydown',e=>{ if(e.key==='Enter') saveCurrentSong(); });
+// 設定の自動保存
+['transpose','style','mode','autoNext','showHint','sound'].forEach(id=>$(id).addEventListener('change',persistSettings));
+$('apply').addEventListener('click',persistSettings);
+$('prog').addEventListener('change',persistSettings);
+
 //---- 起動 ---------------------------------------------------------
 buildPiano();
+buildWheel();
+restoreSettings();          // 保存済みの設定・進行を復元
+refreshSongList();
 updateModeInfo();
 setProgression($('prog').value);
+if(savedTranspose!=null){ $('transpose').value=savedTranspose; rebuild(); }
+buildBookmarklet();
+importFromHash();           // ブックマークレット経由の取り込みがあれば最優先で反映
+addEventListener('hashchange',importFromHash);  // 既に開いている場合も対応
 initMIDI();
+// PWA: Service Worker 登録（対応ブラウザのみ）
+if('serviceWorker' in navigator){
+  addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
 </script>
 </body>
 </html>
