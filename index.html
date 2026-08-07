@@ -88,6 +88,9 @@
   .wlgd.used{background:#3a5a86} .wlgd.cur{background:var(--accent)}
   .wheelNote{color:var(--muted);font-size:12px}
 
+  .bmbtn{display:inline-block;background:var(--accent);color:#08312d;font-weight:700;
+         text-decoration:none;border-radius:7px;padding:3px 10px;margin:0 2px;cursor:grab}
+  .bmbtn:active{cursor:grabbing}
   .help{color:var(--muted);font-size:12px}
   kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;
       border-radius:4px;padding:1px 6px;font-family:ui-monospace,monospace;font-size:11px}
@@ -119,6 +122,18 @@
         <button id="importBtn" class="primary">コードを抽出</button>
       </div>
       <div class="help" id="importMsg" style="margin-top:6px"></div>
+    </details>
+    <details style="margin-top:8px">
+      <summary style="cursor:pointer;font-size:13px;color:var(--muted)">🎼 楽器.me から1タップ取り込み（ブックマークレット）</summary>
+      <div class="help" style="margin-top:8px;line-height:1.9">
+        楽器.me はコピー禁止のため、ページのHTMLを直接読む「ブックマークレット」を使います（ChordPad と同じ仕組み）。<br>
+        <b>① 登録：</b>
+        <span class="bmreg">PCは <a id="bmLink" href="#" class="bmbtn">🎹 コード取込</a> をブックマークバーへドラッグ</span>
+        ／ スマホは <button id="bmCopy" type="button">コードをコピー</button> して「新規ブックマーク」のURL欄に貼り付け<br>
+        <b>② 楽器.me でコード譜ページを開く</b><br>
+        <b>③ そのページでこのブックマークを実行</b> → このアプリが開いて自動でコードが入ります（入った後は編集も可）
+      </div>
+      <div class="help" id="bmMsg" style="margin-top:4px"></div>
     </details>
     <div class="row" style="margin-top:10px">
       <label>マイ曲（この端末に保存）</label>
@@ -409,6 +424,65 @@ function importFromPaste(){
   persistSettings();
   msg.textContent = chords.length+' 個のコードを取り込みました：'+chords.slice(0,12).join(' ')+(chords.length>12?' …':'');
   msg.style.color='var(--ok)';
+}
+
+// ブックマークレットから戻ってきたコードを受け取る（#import=... / #prog=...）
+function importFromHash(){
+  const m=(location.hash||'').match(/[#&](?:import|prog)=([^&]*)/);
+  if(!m) return false;
+  let text='';
+  try{ text=decodeURIComponent(m[1].replace(/\+/g,' ')); }catch(e){ text=m[1]; }
+  text=text.trim();
+  if(!text) return false;
+  $('prog').value=text;
+  setProgression(text);
+  persistSettings();
+  history.replaceState(null,'',location.pathname+location.search); // ハッシュを消す
+  const msg=$('importMsg');
+  if(msg){ msg.textContent='ブックマークレットから '+rawSymbols.length+' 個のコードを取り込みました。';
+           msg.style.color='var(--ok)'; }
+  return true;
+}
+
+// 楽器.me 等のページ上で実行する抽出コード（この関数の中身がブックマークレットになる）
+function BM(APP){
+  var RE=/^[A-G](?:#|b|♯|♭)?(?:maj7|maj9|maj13|maj|M7|M9|M|m7b5|min7|min|m7|m9|m11|m13|m6|mMaj7|m|dim7|dim|aug|sus2|sus4|sus|add9|add11|add13|add2|6\/9|69|6|7sus4|7|9|11|13|\+|°|ø)*(?:b5|#5|b9|#9|#11|b13|-5|\+5|-9|\+9|no3|no5)*(?:\((?:[#b♯♭+\-]?\d+[,\s]*)+\))?(?:\/[A-G](?:#|b|♯|♭)?)?$/;
+  function isCh(t){ return t && t.length<=10 && RE.test(t); }
+  function fromText(txt){
+    var out=[], L=txt.replace(/\r/g,'').replace(/（/g,'(').replace(/）/g,')').split('\n');
+    for(var i=0;i<L.length;i++){
+      var l=L[i].replace(/\[[^\]]*\]/g,' ').replace(/[｜|]/g,' ').replace(/[×xX*]\s*\d+/g,' ');
+      var tk=l.split(/\s+/).filter(Boolean); if(!tk.length) continue;
+      var c=tk.filter(isCh);
+      if(c.length && c.length>=Math.ceil(tk.length*0.6)) out.push.apply(out,c);
+    }
+    return out;
+  }
+  var t=fromText(document.body.innerText||'');
+  if(!t.length){ // フォールバック: リーフ要素からコードだけ拾う
+    var leaf=[], a=document.querySelectorAll('body *');
+    for(var i=0;i<a.length;i++){ if(a[i].children.length) continue;
+      var s=(a[i].textContent||'').trim(); if(isCh(s)) leaf.push(s); }
+    t=leaf;
+  }
+  if(!t.length){ alert('コードが見つかりませんでした。コード譜の本文が表示された状態で実行してください。'); return; }
+  location.href=APP+'#import='+encodeURIComponent(t.join(' '));
+}
+function buildBookmarklet(){
+  const appUrl=location.origin+location.pathname;
+  const src='('+BM.toString()+')('+JSON.stringify(appUrl)+')';
+  const href='javascript:'+encodeURIComponent(src);
+  const a=$('bmLink'); if(a) a.href=href;
+  const btn=$('bmCopy');
+  if(btn) btn.onclick=()=>{
+    const done=ok=>{ const m=$('bmMsg'); m.textContent= ok
+      ? 'コピーしました。ブラウザで「ブックマークを追加」→ 名前は「コード取込」→ URL欄に貼り付けて保存してください。'
+      : 'コピーできませんでした。上の緑ボタンを長押しして「リンクをコピー」してください。';
+      m.style.color= ok?'var(--ok)':'var(--ng)'; };
+    (navigator.clipboard&&navigator.clipboard.writeText
+      ? navigator.clipboard.writeText(href) : Promise.reject()
+    ).then(()=>done(true),()=>done(false));
+  };
 }
 
 //---- 進行のセット --------------------------------------------------
@@ -834,6 +908,9 @@ refreshSongList();
 updateModeInfo();
 setProgression($('prog').value);
 if(savedTranspose!=null){ $('transpose').value=savedTranspose; rebuild(); }
+buildBookmarklet();
+importFromHash();           // ブックマークレット経由の取り込みがあれば最優先で反映
+addEventListener('hashchange',importFromHash);  // 既に開いている場合も対応
 initMIDI();
 // PWA: Service Worker 登録（対応ブラウザのみ）
 if('serviceWorker' in navigator){
