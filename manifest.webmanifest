@@ -1,7 +1,7 @@
 {
-  "name": "JazzSteps Lite — ジャズピアノ コード練習",
-  "short_name": "JazzSteps",
-  "description": "ジャズピアノのコード進行を最小運指で練習。5度圏表示・コード譜取り込み・ローカル保存対応。",
+  "name": "MiniPianoChord — ミニ鍵盤コード練習",
+  "short_name": "MiniPianoChord",
+  "description": "ミニ鍵盤でコード進行を最小運指で練習。5度圏表示・コード譜取り込み・ローカル保存対応。",
   "lang": "ja",
   "start_url": "./",
   "scope": "./",

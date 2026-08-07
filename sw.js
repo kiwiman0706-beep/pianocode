@@ -1,5 +1,5 @@
-/* JazzSteps Lite — Service Worker (offline app shell) */
-const CACHE = 'jazzsteps-v1';
+/* MiniPianoChord — Service Worker (offline app shell) */
+const CACHE = 'minipianochord-v2';
 const ASSETS = [
   './',
   './index.html',

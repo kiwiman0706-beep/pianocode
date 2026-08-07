@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>JazzSteps Lite — ジャズピアノ コード練習</title>
+<title>MiniPianoChord — ミニ鍵盤コード練習</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0f1420">
 <link rel="icon" href="icon-192.png">
@@ -11,7 +11,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="JazzSteps">
+<meta name="apple-mobile-web-app-title" content="MiniPianoChord">
 <style>
   :root{
     --bg:#0f1420; --panel:#1a2233; --panel2:#232d42; --line:#33405c;
@@ -100,8 +100,8 @@
 </head>
 <body>
 <header>
-  <h1>🎹 JazzSteps Lite</h1>
-  <span class="sub">ジャズピアノ コード練習 — ホームポジション最小運指</span>
+  <h1>🎹 MiniPianoChord</h1>
+  <span class="sub">ミニ鍵盤コード練習 — ホームポジション最小運指</span>
   <span id="midiStatus">MIDI: 未接続</span>
 </header>
 
@@ -830,6 +830,7 @@ function updateModeInfo(){
 //======================================================================
 // ローカル保存（localStorage）＋ インポート / エクスポート
 //======================================================================
+// 保存済みデータ互換のため内部キーは据え置き（表示名の変更とは無関係）
 const LS_SETTINGS='jazzsteps.settings', LS_SONGS='jazzsteps.songs';
 function loadJSON(k,def){ try{const v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch(e){return def;} }
 function saveJSON(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
@@ -888,11 +889,11 @@ function deleteSelectedSong(){
   $('songSel').value=''; libMsg('「'+name+'」を削除しました。',true);
 }
 function exportData(){
-  const data={app:'JazzSteps Lite',version:1,exportedAt:new Date().toISOString(),
+  const data={app:'MiniPianoChord',version:1,exportedAt:new Date().toISOString(),
               settings:currentSettings(),songs:getSongs()};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=document.createElement('a');
-  a.href=url; a.download='jazzsteps-data-'+new Date().toISOString().slice(0,10)+'.json';
+  a.href=url; a.download='minipianochord-data-'+new Date().toISOString().slice(0,10)+'.json';
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   libMsg('エクスポートしました（'+getSongs().length+'曲）。',true);
 }
