@@ -231,12 +231,20 @@
       <button id="backBtn" class="primary">▶ 伴奏スタート（お手本）</button>
       <label style="margin-left:8px">パターン</label>
       <select id="patternSel" title="バッキング（伴奏）パターン">
-        <optgroup label="動画のパターン（ずっしーのピアノ教室）">
+        <optgroup label="動画F編（3連・シャッフル系）">
           <option value="swing3" selected>① 3連スウィング（軽め）</option>
           <option value="bounce8">② 8ビート・バウンス（低音↔和音）</option>
           <option value="syncopa">③ シンコペーション（食い）</option>
           <option value="shuffle3">④ 3連シャッフル（ブルース）</option>
           <option value="flow8">⑤ 流れる8分（分散和音）</option>
+        </optgroup>
+        <optgroup label="動画G編（その1〜6）">
+          <option value="g1">その1（休符スタート＋シンコペ）</option>
+          <option value="g2">その2（8分スタッカート和音）</option>
+          <option value="g3">その3（2拍フレーズ・コンピング）</option>
+          <option value="g4">その4（裏拍アクセント/オフビート）</option>
+          <option value="g5">その5（シンコペ＋歩くベース）</option>
+          <option value="g6">その6（8分の低音ブギ＋和音）</option>
         </optgroup>
         <optgroup label="基本パターン">
           <option value="block">白玉（全音符でコードを保持）</option>
@@ -868,6 +876,38 @@ const PATTERNS = {
     const h=[{step:0,notes:[t.root],dur:2,hand:'L'}, {step:2,notes:[t.fifth],dur:2,hand:'L'},
              {step:4,notes:[t.oct],dur:2,hand:'L'},  {step:6,notes:[t.fifth],dur:2,hand:'L'}];
     [0,1,2,3,2,1,2,3].forEach((n,i)=>h.push({step:i,notes:[rn[n%rn.length]],dur:1,hand:'R'}));
+    return h; }},
+
+  // ── コードG編（その1〜6）: 8分グリッド。RH=和音の刻み、LH=ベースの動き ──
+  g1:{ label:'その1（休符スタート＋シンコペ）', beats:4, div:2, build:v=>{ const t=tones(v);
+    const h=[]; [2,3,5,7].forEach(s=>h.push({step:s,notes:t.chord,dur:1,hand:'R'}));
+    [[0,t.root],[1,t.fifth],[3,t.oct],[4,t.root],[5,t.fifth],[7,t.oct]].forEach(([s,n])=>h.push({step:s,notes:[n],dur:1,hand:'L'}));
+    return h; }},
+
+  g2:{ label:'その2（8分スタッカート和音）', beats:4, div:2, build:v=>{ const t=tones(v);
+    const h=[]; [0,2,3,5,6].forEach(s=>h.push({step:s,notes:t.chord,dur:1,hand:'R'}));
+    [[0,t.root],[2,t.fifth],[4,t.root],[6,t.fifth]].forEach(([s,n])=>h.push({step:s,notes:[n],dur:1,hand:'L'}));
+    return h; }},
+
+  g3:{ label:'その3（2拍フレーズ・コンピング）', beats:4, div:2, build:v=>{ const t=tones(v);
+    const h=[]; [0,2,3,5,6].forEach(s=>h.push({step:s,notes:t.chord,dur:1,hand:'R'}));
+    [[0,t.root,2],[2,t.fifth,1],[3,t.oct,1],[4,t.root,2],[6,t.fifth,1],[7,t.oct,1]].forEach(([s,n,d])=>h.push({step:s,notes:[n],dur:d,hand:'L'}));
+    return h; }},
+
+  g4:{ label:'その4（裏拍アクセント/オフビート）', beats:4, div:2, build:v=>{ const t=tones(v);
+    const h=[]; [1,3,5,7].forEach(s=>h.push({step:s,notes:t.chord,dur:1,hand:'R'}));
+    [[0,t.root,2],[3,t.fifth,1],[4,t.oct,1],[6,t.root,2]].forEach(([s,n,d])=>h.push({step:s,notes:[n],dur:d,hand:'L'}));
+    return h; }},
+
+  g5:{ label:'その5（シンコペ＋歩くベース）', beats:4, div:2, build:v=>{ const t=tones(v);
+    const h=[]; [1,3,6].forEach(s=>h.push({step:s,notes:t.chord,dur:1,hand:'R'}));
+    // 歩くベース：最後に半音下(F#等)からG等へ解決
+    [[0,t.root],[1,t.fifth],[3,t.oct],[4,t.root],[5,t.fifth],[7,t.root-1]].forEach(([s,n])=>h.push({step:s,notes:[n],dur:1,hand:'L'}));
+    return h; }},
+
+  g6:{ label:'その6（8分の低音ブギ＋和音）', beats:4, div:2, build:v=>{ const t=tones(v);
+    const h=[]; [0,1,3,5,6].forEach(s=>h.push({step:s,notes:t.chord,dur:1,hand:'R'}));
+    for(let s=0;s<8;s++) h.push({step:s,notes:[s%2? t.oct : t.root],dur:1,hand:'L'});
     return h; }},
 };
 // パターンから使う音（左手の最低音＝ルート、5度、オクターブ／右手＝和音）
