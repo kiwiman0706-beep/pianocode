@@ -73,6 +73,11 @@
   .bkey.hintR{background:linear-gradient(#c79a54,#a9772a)}
   .wkey.play{background:linear-gradient(#8ff3e9,#38c9bd)!important}
   .bkey.play{background:linear-gradient(#38c9bd,#1c9a90)!important}
+  /* お手本演奏（バッキング）: 左手=青 / 右手=橙で光らせる */
+  .wkey.demoL{background:linear-gradient(#8ec4ff,#3f7fe0)!important;box-shadow:0 0 10px #4f8fe6}
+  .wkey.demoR{background:linear-gradient(#ffd489,#f2a83e)!important;box-shadow:0 0 10px #f0ab45}
+  .bkey.demoL{background:linear-gradient(#4f8fe6,#295da8)!important;box-shadow:0 0 10px #4f8fe6}
+  .bkey.demoR{background:linear-gradient(#f2a83e,#c07d1e)!important;box-shadow:0 0 10px #f0ab45}
 
   /* 5度圏 */
   .wheelWrap{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:10px;justify-content:center}
@@ -222,6 +227,25 @@
         左手 <kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd><kbd>V</kbd><kbd>B</kbd><kbd>N</kbd><kbd>M</kbd>（C3〜白鍵）
       </span>
     </div>
+    <div class="row" style="margin-top:10px;align-items:center">
+      <button id="backBtn" class="primary">▶ 伴奏スタート（お手本）</button>
+      <label style="margin-left:8px">パターン</label>
+      <select id="patternSel" title="バッキング（伴奏）パターン">
+        <option value="block">白玉（全音符でコードを保持）</option>
+        <option value="charleston" selected>チャールストン（ジャズ定番コンピング）</option>
+        <option value="swing4">4ビート・スウィング（4分で刻む）</option>
+        <option value="bossa">ボサノバ</option>
+        <option value="ballad">バラード（分散・アルペジオ）</option>
+        <option value="pop8">ポップス8ビート</option>
+        <option value="stride">ストライド（低音↔和音）</option>
+        <option value="waltz">ワルツ（3拍子・ズン・チャ・チャ）</option>
+      </select>
+      <label style="margin-left:8px">テンポ</label>
+      <input id="bpm" type="number" value="100" min="40" max="240" step="1" style="width:64px" title="BPM">
+      <span class="help">BPM</span>
+      <label style="margin-left:8px" title="1コードを何小節鳴らすか"><input type="checkbox" id="loopSong" checked> 進行をループ</label>
+    </div>
+    <div class="help" id="backMsg" style="margin-top:4px">お手本演奏：左手＝青 / 右手＝橙で鍵盤が光ります（判定はしません）。</div>
   </section>
 
   <p class="help">
@@ -529,6 +553,7 @@ function buildBookmarklet(){
 
 //---- 進行のセット --------------------------------------------------
 function setProgression(text){
+  if(backing.on) stopBacking();
   rawSymbols = text.split(/[\s|,]+/).filter(Boolean);
   buildTransposeOptions();
   rebuild();
@@ -734,6 +759,7 @@ function evaluate(){
   }
 }
 function go(d){
+  if(backing.on) stopBacking();
   passed=false;
   if(!progression.length) return;
   idx=(idx+d+progression.length)%progression.length;
@@ -771,6 +797,101 @@ function replay(){
     o.connect(g).connect(a.destination); o.start(st); o.stop(st+0.95);
   });
 }
+
+//======================================================================
+// バッキング（お手本演奏）— 判定なし。鍵盤を光らせて伴奏パターンを再生
+//   voi = ch._v = {left, right, all}。8分音符グリッド(step)で hits を組む。
+//======================================================================
+const PATTERNS = {
+  block:{ label:'白玉', beats:4, build:v=>[
+    {step:0,notes:v.left,dur:8,hand:'L'}, {step:0,notes:v.right,dur:8,hand:'R'} ]},
+  charleston:{ label:'チャールストン', beats:4, build:v=>[
+    {step:0,notes:v.left,dur:3,hand:'L'}, {step:0,notes:v.right,dur:3,hand:'R'},
+    {step:3,notes:v.right,dur:3,hand:'R'} ]},
+  swing4:{ label:'4ビート', beats:4, build:v=>[
+    {step:0,notes:v.left,dur:4,hand:'L'}, {step:4,notes:v.left,dur:4,hand:'L'},
+    {step:0,notes:v.right,dur:1,hand:'R'}, {step:2,notes:v.right,dur:1,hand:'R'},
+    {step:4,notes:v.right,dur:1,hand:'R'}, {step:6,notes:v.right,dur:1,hand:'R'} ]},
+  bossa:{ label:'ボサノバ', beats:4, build:v=>[
+    {step:0,notes:v.left,dur:4,hand:'L'}, {step:4,notes:v.left,dur:4,hand:'L'},
+    {step:0,notes:v.right,dur:2,hand:'R'}, {step:3,notes:v.right,dur:2,hand:'R'},
+    {step:6,notes:v.right,dur:2,hand:'R'} ]},
+  ballad:{ label:'バラード', beats:4, build:v=>{
+    const h=[{step:0,notes:v.left,dur:8,hand:'L'}];
+    const rn=[...v.right].sort((a,b)=>a-b);
+    [0,2,4,6].forEach((s,i)=>h.push({step:s,notes:[rn[i%rn.length]],dur:2,hand:'R'}));
+    return h; }},
+  pop8:{ label:'ポップス8ビート', beats:4, build:v=>[
+    {step:0,notes:v.left,dur:4,hand:'L'}, {step:4,notes:v.left,dur:4,hand:'L'},
+    {step:0,notes:v.right,dur:1,hand:'R'}, {step:2,notes:v.right,dur:1,hand:'R'},
+    {step:3,notes:v.right,dur:1,hand:'R'}, {step:4,notes:v.right,dur:1,hand:'R'},
+    {step:6,notes:v.right,dur:1,hand:'R'}, {step:7,notes:v.right,dur:1,hand:'R'} ]},
+  stride:{ label:'ストライド', beats:4, build:v=>[
+    {step:0,notes:v.left,dur:2,hand:'L'}, {step:4,notes:v.left,dur:2,hand:'L'},
+    {step:2,notes:v.right,dur:2,hand:'R'}, {step:6,notes:v.right,dur:2,hand:'R'} ]},
+  waltz:{ label:'ワルツ', beats:3, build:v=>[
+    {step:0,notes:v.left,dur:2,hand:'L'},
+    {step:2,notes:v.right,dur:2,hand:'R'}, {step:4,notes:v.right,dur:2,hand:'R'} ]},
+};
+const backing={ on:false, timer:null, bar:0, played:0 };
+function backMsg(t){ $('backMsg').textContent=t; }
+function bpmVal(){ return Math.max(40,Math.min(240, parseInt($('bpm').value,10)||100)); }
+function scheduleNote(m,t,dur){
+  const a=audio(); const o=a.createOscillator(), g=a.createGain();
+  o.type='triangle'; o.frequency.value=440*Math.pow(2,(m-69)/12);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.14,t+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t+dur+0.05);
+}
+function demoStrike(notes,hand,ms){
+  const cls = hand==='L'?'demoL':'demoR'; const on=[];
+  notes.forEach(m=>{ if(m==null) return; const el=keyEls[foldToRange(m)];
+    if(el){ el.classList.add(cls); on.push([el,cls]); } });
+  setTimeout(()=>on.forEach(([el,c])=>el.classList.remove(c)), Math.max(120,ms));
+}
+function clearDemo(){ Object.values(keyEls).forEach(el=>el.classList.remove('demoL','demoR')); }
+function scheduleBar(){
+  if(!backing.on) return;
+  const a=audio();
+  const pat=PATTERNS[$('patternSel').value]||PATTERNS.charleston;
+  const beats=pat.beats||4, steps=beats*2, stepDur=(60/bpmVal())/2;
+  idx=((backing.bar%progression.length)+progression.length)%progression.length;
+  showCurrent();                                  // 現在コードのチップ・ヒントを更新
+  const ch=progression[idx];
+  const voi=(ch && !ch.bad)? ch._v : null;
+  const barStart=a.currentTime+0.06;
+  if(voi){
+    pat.build(voi).forEach(h=>{
+      const t=barStart+h.step*stepDur;
+      const durSec=Math.max(0.12,h.dur*stepDur*0.95);
+      h.notes.forEach(m=>{ if(m!=null) scheduleNote(m,t,durSec); });
+      const delayMs=(t-a.currentTime)*1000;
+      setTimeout(()=>{ if(backing.on) demoStrike(h.notes,h.hand,durSec*1000); }, Math.max(0,delayMs));
+    });
+  }
+  backing.timer=setTimeout(()=>{
+    if(!backing.on) return;
+    backing.played++;
+    if(!$('loopSong').checked && backing.played>=progression.length){ stopBacking(); return; }
+    backing.bar++; scheduleBar();
+  }, steps*stepDur*1000);
+}
+function startBacking(){
+  if(!progression.length){ backMsg('進行が空です。コードをセットしてください。'); return; }
+  const a=audio(); if(a.state==='suspended') a.resume();
+  backing.on=true; backing.bar=idx; backing.played=0;
+  $('backBtn').textContent='■ 停止';
+  backMsg('お手本演奏中… 左手＝青 / 右手＝橙。パターンやテンポは再生中でも変えられます。');
+  scheduleBar();
+}
+function stopBacking(){
+  if(backing.timer){ clearTimeout(backing.timer); backing.timer=null; }
+  backing.on=false;
+  $('backBtn').textContent='▶ 伴奏スタート（お手本）';
+  clearDemo();
+}
+function toggleBacking(){ backing.on? stopBacking() : startBacking(); }
 
 //---- PCキーボード -------------------------------------------------
 const KEYMAP={ // 右手 C4域
@@ -837,6 +958,7 @@ $('showHint').onchange=paintHints;
 $('next').onclick=()=>go(1);
 $('prev').onclick=()=>go(-1);
 $('replay').onclick=replay;
+$('backBtn').onclick=toggleBacking;
 $('toC').onclick=()=>{
   const first=rawSymbols.map(parseChord).find(c=>c);
   if(!first) return;
