@@ -114,6 +114,13 @@
              placeholder="例: Dm7 G7 Cmaj7  (スペース か | 区切り)">
       <button id="apply" class="primary">セット</button>
     </div>
+    <div class="row" style="margin-top:8px">
+      <label>プリセット</label>
+      <select id="presetSel" title="ジャズ・ポップスの定番コード進行から選ぶ">
+        <option value="">— 定番の進行から選ぶ —</option>
+      </select>
+    </div>
+    <div class="help" id="presetDesc" style="margin-top:4px"></div>
     <details style="margin-top:10px">
       <summary style="cursor:pointer;font-size:13px;color:var(--muted)">📋 コード譜から取り込み（楽器.me などを貼り付け）</summary>
       <div class="row" style="margin-top:8px;align-items:flex-start">
@@ -956,7 +963,78 @@ $('songName').addEventListener('keydown',e=>{ if(e.key==='Enter') saveCurrentSon
 $('apply').addEventListener('click',persistSettings);
 $('prog').addEventListener('change',persistSettings);
 
+//======================================================================
+// プリセット進行（ジャズ／ポップスの定番）
+//   すべて parseChord が解釈できる表記。key は書かれたまま（移調は±0で読込）。
+//======================================================================
+const PRESETS = [
+  { group:'ジャズ 定番', items:[
+    { name:'ツー・ファイブ・ワン（II-V-I メジャー）',      chords:'Dm7 G7 Cmaj7',
+      desc:'ジャズで最頻出。ii→V→I の解決を体で覚える基本形。' },
+    { name:'マイナー II-V-I（IIm7♭5-V7-Im）',              chords:'Dm7b5 G7 Cm7',
+      desc:'短調の定番。m7♭5（ハーフディミニッシュ）からの解決。' },
+    { name:'循環コード（I-VI-II-V ターンアラウンド）',     chords:'Cmaj7 A7 Dm7 G7',
+      desc:'曲頭・曲末で回す黄金の4コード。歌モノにも多用。' },
+    { name:'II-V 下降チェーン',                            chords:'Dm7 G7 Cmaj7 Cm7 F7 Bbmaj7',
+      desc:'半音下へ転調していく ii-V の連鎖。指くせ練習に最適。' },
+    { name:'枯葉（Autumn Leaves 前半）',                   chords:'Cm7 F7 Bbmaj7 Ebmaj7 Am7b5 D7 Gm7',
+      desc:'メジャーII-V-I → マイナーII-V-i の名教材。' },
+    { name:'Fly Me to the Moon（循環）',                   chords:'Am7 Dm7 G7 Cmaj7 Fmaj7 Bm7b5 E7 Am7',
+      desc:'4度進行でぐるぐる回る、耳なじみの循環進行。' },
+    { name:'リズム・チェンジ A（循環×2 / B♭）',           chords:'Bbmaj7 G7 Cm7 F7 Dm7 G7 Cm7 F7',
+      desc:'“I Got Rhythm”系。I-VI-II-V を2回。ジャズの土台。' },
+  ]},
+  { group:'ポップス 定番', items:[
+    { name:'王道進行（IV-V-III-VI / 4536）',               chords:'Fmaj7 G7 Em7 Am7',
+      desc:'J-POPで最頻出の“エモい”王道。サビによく合う。' },
+    { name:'カノン進行（パッヘルベル）',                   chords:'C G Am Em F C F G',
+      desc:'古今東西の名曲進行。1音ずつ下がるベースが美しい。' },
+    { name:'小室進行（VIm-IV-V-I）',                       chords:'Am F G C',
+      desc:'90年代を席巻した疾走感のある短調スタート進行。' },
+    { name:'4つのコード（I-V-VIm-IV / Axis）',             chords:'C G Am F',
+      desc:'世界中のヒット曲で使い回される“魔法の4コード”。' },
+    { name:'丸サ進行（Just the Two of Us）',               chords:'Fmaj7 E7 Am7 Gm7 C7',
+      desc:'おしゃれ系の定番。IVM7→III7→VIm→(II-V) の流れ。' },
+    { name:'6-4-1-5（切ないループ）',                      chords:'Am F C G',
+      desc:'エモ・バラード系で多い、短調はじまりの循環。' },
+  ]},
+  { group:'ブルース', items:[
+    { name:'3コード・ブルース（基本）',                    chords:'C7 F7 G7',
+      desc:'I7-IV7-V7 の3つ。ブルース／ロックの原型。' },
+    { name:'12小節ブルース（C）',                          chords:'C7 C7 C7 C7 F7 F7 C7 C7 G7 F7 C7 G7',
+      desc:'王道の12小節フォーム。アドリブ練習の定番土台。' },
+    { name:'ジャズ・ブルース（F）',                        chords:'F7 Bb7 F7 F7 Bb7 Bb7 F7 D7 Gm7 C7 F7 C7',
+      desc:'II-V を差し込んだジャズ版12小節ブルース。' },
+  ]},
+];
+function buildPresetOptions(){
+  const sel=$('presetSel');
+  PRESETS.forEach(g=>{
+    const og=document.createElement('optgroup'); og.label=g.group;
+    g.items.forEach(it=>{
+      const o=document.createElement('option');
+      o.value=it.chords; o.textContent=it.name; o.dataset.desc=it.desc||'';
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  });
+}
+function loadPreset(){
+  const sel=$('presetSel'); const chords=sel.value;
+  if(!chords){ $('presetDesc').textContent=''; return; }
+  const opt=sel.options[sel.selectedIndex];
+  $('prog').value=chords;
+  $('transpose').value='0';        // プリセットは書かれたキーそのままで読み込む
+  idx=0;
+  setProgression(chords);
+  $('presetDesc').textContent='♪ '+opt.textContent+' … '+(opt.dataset.desc||'');
+  $('presetDesc').style.color='var(--muted)';
+  persistSettings();
+}
+$('presetSel').onchange=loadPreset;
+
 //---- 起動 ---------------------------------------------------------
+buildPresetOptions();
 buildPiano();
 buildWheel();
 restoreSettings();          // 保存済みの設定・進行を復元
