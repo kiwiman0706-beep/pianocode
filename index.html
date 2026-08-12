@@ -231,14 +231,23 @@
       <button id="backBtn" class="primary">▶ 伴奏スタート（お手本）</button>
       <label style="margin-left:8px">パターン</label>
       <select id="patternSel" title="バッキング（伴奏）パターン">
-        <option value="block">白玉（全音符でコードを保持）</option>
-        <option value="charleston" selected>チャールストン（ジャズ定番コンピング）</option>
-        <option value="swing4">4ビート・スウィング（4分で刻む）</option>
-        <option value="bossa">ボサノバ</option>
-        <option value="ballad">バラード（分散・アルペジオ）</option>
-        <option value="pop8">ポップス8ビート</option>
-        <option value="stride">ストライド（低音↔和音）</option>
-        <option value="waltz">ワルツ（3拍子・ズン・チャ・チャ）</option>
+        <optgroup label="動画のパターン（ずっしーのピアノ教室）">
+          <option value="swing3" selected>① 3連スウィング（軽め）</option>
+          <option value="bounce8">② 8ビート・バウンス（低音↔和音）</option>
+          <option value="syncopa">③ シンコペーション（食い）</option>
+          <option value="shuffle3">④ 3連シャッフル（ブルース）</option>
+          <option value="flow8">⑤ 流れる8分（分散和音）</option>
+        </optgroup>
+        <optgroup label="基本パターン">
+          <option value="block">白玉（全音符でコードを保持）</option>
+          <option value="charleston">チャールストン（ジャズ定番コンピング）</option>
+          <option value="swing4">4ビート・スウィング（4分で刻む）</option>
+          <option value="bossa">ボサノバ</option>
+          <option value="ballad">バラード（分散・アルペジオ）</option>
+          <option value="pop8">ポップス8ビート</option>
+          <option value="stride">ストライド（低音↔和音）</option>
+          <option value="waltz">ワルツ（3拍子・ズン・チャ・チャ）</option>
+        </optgroup>
       </select>
       <label style="margin-left:8px">テンポ</label>
       <input id="bpm" type="number" value="100" min="40" max="240" step="1" style="width:64px" title="BPM">
@@ -832,7 +841,42 @@ const PATTERNS = {
   waltz:{ label:'ワルツ', beats:3, build:v=>[
     {step:0,notes:v.left,dur:2,hand:'L'},
     {step:2,notes:v.right,dur:2,hand:'R'}, {step:4,notes:v.right,dur:2,hand:'R'} ]},
+
+  // ── スクショ（ずっしーのピアノ教室）から起こした5種。div:3 は3連グリッド ──
+  swing3:{ label:'① 3連スウィング（軽め）', beats:4, div:3, build:v=>{ const t=tones(v); return [
+    {step:0,notes:[t.root],dur:3,hand:'L'}, {step:6,notes:[t.fifth],dur:3,hand:'L'},
+    {step:0,notes:t.chord,dur:2,hand:'R'}, {step:2,notes:t.chord,dur:1,hand:'R'},
+    {step:6,notes:t.chord,dur:2,hand:'R'}, {step:8,notes:t.chord,dur:1,hand:'R'} ]; }},
+
+  bounce8:{ label:'② 8ビート・バウンス（低音↔和音）', beats:4, div:2, build:v=>{ const t=tones(v); const h=[];
+    [0,2,4,6].forEach(s=>{ h.push({step:s,notes:[t.root],dur:1,hand:'L'});
+                           h.push({step:s+1,notes:[t.fifth],dur:1,hand:'L'});
+                           h.push({step:s,notes:t.chord,dur:1,hand:'R'}); });
+    return h; }},
+
+  syncopa:{ label:'③ シンコペーション（食い）', beats:4, div:2, build:v=>{ const t=tones(v); return [
+    {step:0,notes:[t.root],dur:2,hand:'L'}, {step:3,notes:[t.root],dur:2,hand:'L'}, {step:6,notes:[t.fifth],dur:2,hand:'L'},
+    {step:0,notes:t.chord,dur:2,hand:'R'}, {step:3,notes:t.chord,dur:3,hand:'R'}, {step:6,notes:t.chord,dur:2,hand:'R'} ]; }},
+
+  shuffle3:{ label:'④ 3連シャッフル（ブルース）', beats:4, div:3, build:v=>{ const t=tones(v);
+    const h=[{step:0,notes:[t.root],dur:3,hand:'L'}, {step:6,notes:[t.fifth],dur:3,hand:'L'}];
+    [0,2,3,5,6,8,9,11].forEach(s=>h.push({step:s,notes:t.chord,dur:1,hand:'R'}));
+    return h; }},
+
+  flow8:{ label:'⑤ 流れる8分（分散和音）', beats:4, div:2, build:v=>{ const t=tones(v);
+    const rn=[...new Set(t.chord)].sort((a,b)=>a-b);
+    const h=[{step:0,notes:[t.root],dur:2,hand:'L'}, {step:2,notes:[t.fifth],dur:2,hand:'L'},
+             {step:4,notes:[t.oct],dur:2,hand:'L'},  {step:6,notes:[t.fifth],dur:2,hand:'L'}];
+    [0,1,2,3,2,1,2,3].forEach((n,i)=>h.push({step:i,notes:[rn[n%rn.length]],dur:1,hand:'R'}));
+    return h; }},
 };
+// パターンから使う音（左手の最低音＝ルート、5度、オクターブ／右手＝和音）
+function tones(v){
+  const all=[...new Set(v.all)].sort((a,b)=>a-b);
+  const low=all[0];
+  return { all, root:low, fifth:low+7, oct:low+12,
+           chord:(v.right&&v.right.length)? v.right : all };
+}
 const backing={ on:false, timer:null, bar:0, played:0 };
 function backMsg(t){ $('backMsg').textContent=t; }
 function bpmVal(){ return Math.max(40,Math.min(240, parseInt($('bpm').value,10)||100)); }
@@ -855,7 +899,7 @@ function scheduleBar(){
   if(!backing.on) return;
   const a=audio();
   const pat=PATTERNS[$('patternSel').value]||PATTERNS.charleston;
-  const beats=pat.beats||4, steps=beats*2, stepDur=(60/bpmVal())/2;
+  const beats=pat.beats||4, div=pat.div||2, steps=beats*div, stepDur=(60/bpmVal())/div;
   idx=((backing.bar%progression.length)+progression.length)%progression.length;
   showCurrent();                                  // 現在コードのチップ・ヒントを更新
   const ch=progression[idx];
